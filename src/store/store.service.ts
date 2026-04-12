@@ -1,0 +1,181 @@
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { CreateStoreDto } from './dto/create-store.dto';
+import { UpdateStoreDto } from './dto/update-store.dto';
+import { StoreRepository } from './store.repository';
+import { UserRepository } from 'src/user/user.repository';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { Prisma } from '@prisma/client';
+import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
+import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
+import { Decimal } from '@prisma/client/runtime/client';
+import { SetManagerStore } from './dto/set-manager-store-dto';
+
+@Injectable()
+export class StoreService {
+  constructor(
+    private prisma: PrismaService,
+    private storeRepo: StoreRepository,
+    private userRepo: UserRepository,
+    private storeStockModelRepo: StockModelRepository,
+    private storeInventoryRepo: StoreInventoryRepositroy
+  ) { }
+
+  // 新增门店
+  async create(createStoreDto: CreateStoreDto) {
+    const reuslt = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1.验证店长是否注册
+      const user = await this.userRepo.findOne(createStoreDto.managerId, tx)
+      if (!user) throw new BadRequestException('请店长先注册平台')
+      // 2.创建门店基础信息
+      const store = await this.storeRepo.create(createStoreDto, tx)
+      // 3.更新用户身份为店长
+      await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
+      // 4.初始化库存
+      if (createStoreDto.inventoryTemplateId) {
+        // 4.1 获取对应的库存模版
+        const stockModel = await this.storeStockModelRepo.findSku(createStoreDto.inventoryTemplateId, tx)
+        // 4.2 准备参数
+        const storeInventoryData = stockModel?.items.map(item => ({
+          storeId: store.id,
+          categoryId: item.categoryId,
+          skuId: item.skus.id,
+          stock: item.initStock ?? 0,
+          costPrice: String(item.skus.costPrice),
+          salePrice: String(item.skus.salePrice)
+        }))
+        // 4.3 将套餐里的SKU添加至门店库存
+        if (storeInventoryData?.length) {
+          await this.storeInventoryRepo.createMany(storeInventoryData, tx)
+        }
+      }
+
+      return store.id
+    })
+    return {
+      storeId: reuslt
+    }
+  }
+
+  // 获取所有门店
+  async findAll(pageNum: number, pageSize: number) {
+    const [list, total] = await this.storeRepo.findAll(pageNum, pageSize)
+    return {
+      list,
+      total,
+      pageNum,
+      pageSize,
+      totalPage: Math.ceil(total / pageSize)
+    }
+  }
+
+  // 门店详情
+  async findOne(id: string) {
+    // 1. 获取原始数据
+    const store = await this.storeRepo.findOne(id)
+
+    // 2. 空值判断
+    if (!store) {
+      throw new BadRequestException('门店不存在')
+    }
+
+    // 3. 重构 inventory 数据
+    const newInventory = store.inventory.map(item => {
+      // 先把 sku 抽出来，剩下的叫 rest
+      const { sku, ...rest } = item
+      const attrs = sku.attrs as {
+        label: string,
+        value: string
+      }
+
+      return {
+        ...rest,         // 所有原来的字段
+        skuValue: attrs.value,
+        productName: item.sku.product.name
+      }
+    })
+
+    // 4. 返回一个新对象，覆盖 inventory
+    return {
+      ...store,
+      inventory: newInventory
+    }
+  }
+
+  // 获取用户（店长）当前门店信息
+  async managerFindOne(storeId: string, userId: string) {
+    return this.storeRepo.managerFindOne(storeId, userId)
+  }
+
+  // 更新门店基础信息
+  async updateBasic(id: string, updateStoreDto: UpdateStoreDto) {
+    return this.storeRepo.updateBasic(id, updateStoreDto)
+  }
+
+  // 设定店长
+  async setManager(storeId: string, setManagerStore: SetManagerStore) {
+    return this.prisma.$transaction(async (tx) => {
+      const { managerName, managerPhone } = setManagerStore
+
+      // 1. 检查门店是否存在 & 是否已有店长
+      const store = await this.storeRepo.findOne(storeId, tx)
+      if (!store) {
+        throw new BadRequestException('门店不存在')
+      }
+      if (store.managerId) {
+        throw new BadRequestException('该门店已拥有店长，无法设置')
+      }
+
+      // 2. 检查用户是否存在 & 是否已经是店长
+      const user = await this.userRepo.userFindByPhone(managerPhone, tx)
+      if (!user) {
+        throw new BadRequestException('用户未注册')
+      }
+      if (user.role === 'MANAGER') {
+        throw new BadRequestException('该用户已是店长，不能重复担任')
+      }
+
+      // 3. 升级用户为店长
+      await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
+
+      // 4. 绑定店长到门店
+      const updatedStore = await this.storeRepo.setManager(
+        store.id,
+        user.id,
+        managerName,
+        tx
+      )
+
+      return updatedStore
+    })
+  }
+
+
+  // 解除店长
+  async removeManager(id: string, setManagerStore: SetManagerStore) {
+    const { managerId } = setManagerStore
+    return this.prisma.$transaction(async (tx) => {
+      // 1.旧店长 → 降级为普通用户
+      await this.userRepo.updateUserByManager(managerId, id, 'USER', tx)
+      // 2.门店解除店长关系
+      return this.storeRepo.removeManager(id, tx)
+    })
+  }
+
+  // 删除门店
+  async remove(id: string) {
+    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // 1.删除当前门店
+      const store = await this.storeRepo.remove(id, tx)
+      // 2.将店长身份更新至用户
+      if (store.managerId) {
+        await this.userRepo.updateUserByManager(store.managerId, null, 'USER', tx)
+      }
+
+      return {
+        storeId: store.id
+      }
+    })
+
+    return result
+  }
+}
