@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common'
 import { OrderStatus } from '@prisma/client'
-import { TocOrderRepository } from 'src/toc-order/toc-order.repository'
+import { OrderRepository } from 'src/order/order.repository'
 
 @Injectable()
 export class NotifyRepository {
-  constructor(private tocOrderRepo: TocOrderRepository) {}
+  constructor(private OrderRepo: OrderRepository) { }
   // 商品购买回调
-  proNotify(orderId: string, status: OrderStatus) {}
+  proNotify(orderId: string, status: OrderStatus) { }
 }

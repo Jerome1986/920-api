@@ -9,6 +9,7 @@ import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
 import { Decimal } from '@prisma/client/runtime/client';
 import { SetManagerStore } from './dto/set-manager-store-dto';
+import { WalletRepository } from 'src/wallet/wallet.repository';
 
 @Injectable()
 export class StoreService {
@@ -17,48 +18,93 @@ export class StoreService {
     private storeRepo: StoreRepository,
     private userRepo: UserRepository,
     private storeStockModelRepo: StockModelRepository,
-    private storeInventoryRepo: StoreInventoryRepositroy
+    private storeInventoryRepo: StoreInventoryRepositroy,
+    private walletRepo: WalletRepository
   ) { }
 
   // 新增门店
   async create(createStoreDto: CreateStoreDto) {
-    const reuslt = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // 1.验证店长是否注册
-      const user = await this.userRepo.findOne(createStoreDto.managerId, tx)
-      if (!user) throw new BadRequestException('请店长先注册平台')
-      // 2.创建门店基础信息
-      const store = await this.storeRepo.create(createStoreDto, tx)
-      // 3.更新用户身份为店长
-      await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
-      // 4.初始化库存
-      if (createStoreDto.inventoryTemplateId) {
-        // 4.1 获取对应的库存模版
-        const stockModel = await this.storeStockModelRepo.findSku(createStoreDto.inventoryTemplateId, tx)
-        // 4.2 准备参数
-        const storeInventoryData = stockModel?.items.map(item => ({
-          storeId: store.id,
-          categoryId: item.categoryId,
-          skuId: item.skus.id,
-          stock: item.initStock ?? 0,
-          costPrice: String(item.skus.costPrice),
-          salePrice: String(item.skus.salePrice)
-        }))
-        // 4.3 将套餐里的SKU添加至门店库存
-        if (storeInventoryData?.length) {
-          await this.storeInventoryRepo.createMany(storeInventoryData, tx)
-        }
-      }
+    try {
+      const reuslt = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // 1.验证店长是否注册
+        const user = await this.userRepo.findOne(createStoreDto.managerId, tx)
+        if (!user) throw new BadRequestException('请店长先注册平台')
 
-      return store.id
-    })
-    return {
-      storeId: reuslt
+        // 2.创建门店基础信息
+        const store = await this.storeRepo.create(createStoreDto, tx)
+        if (!store) throw new BadRequestException('门店创建失败')
+
+        // 3.更新用户身份为店长
+        const manager = await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
+        if (!manager) throw new BadRequestException('店长创建失败')
+
+        // 4.初始化库存
+        if (createStoreDto.inventoryTemplateId) {
+          // 4.1 获取对应的库存模版
+          const stockModel = await this.storeStockModelRepo.findSku(createStoreDto.inventoryTemplateId, tx)
+          if (!stockModel) throw new BadRequestException('没有找到对应库存模版')
+
+          // 4.2 准备参数
+          const storeInventoryData = stockModel?.items.map(item => ({
+            storeId: store.id,
+            categoryId: item.categoryId,
+            skuId: item.skus.id,
+            stock: item.initStock ?? 0,
+            costPrice: String(item.skus.costPrice),
+            salePrice: String(item.skus.salePrice)
+          }))
+          // 4.3 将套餐里的SKU添加至门店库存
+          if (storeInventoryData?.length) {
+            const storeInventory = await this.storeInventoryRepo.createMany(storeInventoryData, tx)
+            if (!storeInventory) throw new BadRequestException('门店库存创建失败')
+          }
+        }
+
+        // 5.初始化门店钱包
+        const wallet = await this.walletRepo.createByUserWallet(user.id, tx)
+        if (!wallet) throw new BadRequestException('门店钱包创建失败')
+
+        return store.id
+      })
+
+      // 返回格式
+      return {
+        storeId: reuslt
+      }
+    } catch (err) {
+      // console.error('createStore', err)
+      //  Prisma 外键错误，变成 400
+      if (err.code === 'P2003') {
+        throw new BadRequestException('创建失败：关联数据不存在')
+      }
+      throw err
     }
   }
 
   // 获取所有门店
   async findAll(pageNum: number, pageSize: number) {
-    const [list, total] = await this.storeRepo.findAll(pageNum, pageSize)
+    // 1.获取门店信息
+    const [stores, total] = await this.storeRepo.findAll(pageNum, pageSize)
+    const managerIds = stores.map(l => l.managerId) as string[]
+    // 2.查询店长钱包
+    const wallets = await this.walletRepo.findByUserWallet(managerIds)
+
+    // 3.做一个MAP 性能优化
+    const walletMap = new Map()
+    wallets.forEach(w => {
+      walletMap.set(w.userId, w)
+    })
+
+    // 4.合并数据
+    const list = stores.map(store => ({
+      ...store,
+      wallet: walletMap.get(store.managerId) || {
+        balance: 0,
+        availableBalance: 0,
+        frozenBalance: 0
+      }
+    }))
+
     return {
       list,
       total,
@@ -163,19 +209,25 @@ export class StoreService {
 
   // 删除门店
   async remove(id: string) {
-    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      // 1.删除当前门店
-      const store = await this.storeRepo.remove(id, tx)
-      // 2.将店长身份更新至用户
-      if (store.managerId) {
-        await this.userRepo.updateUserByManager(store.managerId, null, 'USER', tx)
-      }
+    try {
+      const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // 1.删除当前门店
+        const store = await this.storeRepo.remove(id, tx)
+        // 2.将店长身份更新至用户
+        if (store.managerId) {
+          await this.userRepo.updateUserByManager(store.managerId, null, 'USER', tx)
+          // 3.删除门店钱包
+          await this.walletRepo.deleteByUserWallet(store.managerId)
+        }
 
-      return {
-        storeId: store.id
-      }
-    })
+        return {
+          storeId: store.id
+        }
+      })
 
-    return result
+      return result
+    } catch (err) {
+      throw new BadRequestException('删除门店失败')
+    }
   }
 }

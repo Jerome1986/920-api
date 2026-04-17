@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Delete } from '@nestjs/common';
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateStoreDto } from "./dto/create-store.dto";
 import { Prisma } from "@prisma/client";

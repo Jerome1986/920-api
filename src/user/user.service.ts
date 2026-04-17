@@ -70,8 +70,8 @@ export class UserService {
   }
 
   // 查询用户上级
-  async findParentUser(referralCode: string) {
-    return this.repo.findParentUser(referralCode)
+  async findParentUser(userId: string) {
+    return this.repo.findParentUser(userId)
   }
 
   // 生成自己的好友邀请码

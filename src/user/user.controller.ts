@@ -64,9 +64,9 @@ export class UserController {
   }
 
   // 获取用户的上级
-  @Get('parent/:referralCode')
-  async findParentUser(@Param('referralCode') referralCode: string) {
-    return this.userService.findParentUser(referralCode)
+  @Get('parent/:userId')
+  async findParentUser(@Param('userId') userId: string) {
+    return this.userService.findParentUser(userId)
   }
 
   // 生成自己的好友邀请码

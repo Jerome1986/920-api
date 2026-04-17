@@ -1,20 +1,33 @@
-import { Injectable } from '@nestjs/common'
-import { TocOrderRepository } from 'src/toc-order/toc-order.repository'
+import { BadRequestException, Injectable } from '@nestjs/common'
+import { OrderRepository } from 'src/order/order.repository'
 import { UserRepository } from 'src/user/user.repository'
 import { PointsFlowRepository } from 'src/points-flow/points-flow.repository'
 import { RateRuleRepository } from 'src/rate-rule/rate-rule.repository'
 import { decryptWechatData } from 'src/utils/decryptWechatData'
 import { termToMs } from 'src/utils/vipComputer'
 import { VipOrderRepository } from 'src/vip-order/vip-order.repository'
+import { CommissionRuleRepository } from 'src/commission-rule/commission-rule.repository'
+import { Prisma } from '@prisma/client';
+import { PrismaService } from 'src/prisma/prisma.service'
+import { StoreTransactionRepository } from 'src/store-transaction/store-transaction.repository'
+import { ParamsStoreBizType, ParamsStoreTransactionType } from 'src/store-transaction/dto/create-store-transaction.dto'
+import { SettlementRecordRepository } from 'src/settlement-record/settlement-record.repository'
+import { SettlementStatusDto } from 'src/settlement-record/dto/create-settlement-record.dto'
+import { CommissionRuleService } from 'src/commission-rule/commission-rule.service'
 
 @Injectable()
 export class NotifyService {
   constructor(
-    private tocOrderRepo: TocOrderRepository,
+    private tocOrderRepo: OrderRepository,
     private userRepo: UserRepository,
     private pointsFlowRepo: PointsFlowRepository,
     private rateRuleRepo: RateRuleRepository,
     private vipOrderRepo: VipOrderRepository,
+    private commissionRuleRepo: CommissionRuleRepository,
+    private storeTransactionRepo: StoreTransactionRepository,
+    private settlementRecordRepo: SettlementRecordRepository,
+    private commissionRuleService: CommissionRuleService,
+    private prisma: PrismaService
   ) { }
 
   // 微信统一支付回调
@@ -33,49 +46,82 @@ export class NotifyService {
 
     // ============================== 处理商品订单回调 ==============================
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('PRO')) {
-      console.log('商品订单')
-
-      // 调用商品订单成功回调函数--具体功能请函数内部查看
+      // 调用商品订单成功回调函数
       // 1.更新订单状态
       const order = await this.tocOrderRepo.statusOrderUpdate(
         outTradeNo,
         'PAID',
         result.transaction_id,
       )
+      // 查询用户积分
       const user = await this.userRepo.findUserScore(openid)
-      // 2.如果当前订单使用积分，则扣除积分消耗
-      if (order.usedScore && order.usedScore > 0) {
-        // 2.1 查询用户是否足够
-        if (user?.score && user?.score > order.usedScore) {
-          // 2.2 扣除用户积分--向上取整
-          const changeDecScore = Math.ceil(order.usedScore)
-          const userScore = await this.userRepo.updateUserDecScore(openid, changeDecScore)
-          // 2.3 更新积分明细
-          await this.pointsFlowRepo.create({
-            userId: user.id,
-            type: 'EXPENSE',
-            amount: changeDecScore,
-            balance: userScore.score,
-            source: '商品购买',
-          })
-        }
+      if (!user) {
+        throw new BadRequestException('当前用户不存在')
       }
-      // 3.消费返积分
-      // 3.1 获取返积分比例
-      const scoreRule = await this.rateRuleRepo.findAll()
-      const rate = scoreRule[0].earnRate as number
-      const changeIncScore = Number(order.actualPayment) * rate
-      // 3.2 更新用户积分
-      const userScore = await this.userRepo.updateUserIncScore(openid, changeIncScore)
-      // 3.3 更新积分明细
-      await this.pointsFlowRepo.create({
-        userId: user?.id as string,
-        type: 'INCOME',
-        amount: changeIncScore,
-        balance: userScore.score,
-        source: '消费奖励',
-      })
-      // 4.TODO 查询是否有上级
+
+      // 开启事务
+      try {
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          // 2.如果当前订单使用积分，则扣除积分消耗
+          if (order.usedScore && order.usedScore > 0) {
+            console.log('进入积分')
+
+            // 2.1 查询用户是否足够
+            if (user?.score && user?.score > order.usedScore) {
+              // 2.2 扣除用户积分--向上取整
+              const changeDecScore = Math.ceil(order.usedScore)
+              console.log('积分抵扣', changeDecScore)
+              const updatedScoreUser = await this.userRepo.updateUserDecScore(openid, changeDecScore, tx)
+              // 2.3 更新积分明细
+              await this.pointsFlowRepo.create({
+                userId: user.id,
+                type: 'EXPENSE',
+                amount: changeDecScore,
+                balance: updatedScoreUser.score,
+                source: '商品购买',
+              }, tx)
+            } else {
+              throw new BadRequestException('积分不足')
+            }
+          }
+
+          // 3.商品为平台消费，记录门店流水，平台ID为cmnyglwkl0001wkj0p7os6u8c
+          const dataDto = {
+            storeId: 'cmnyglwkl0001wkj0p7os6u8c',
+            consumerId: user.id,
+            type: ParamsStoreTransactionType.INCOME,
+            bizType: ParamsStoreBizType.PRODUCT,
+            amount: order.actualPayment.toString(),
+            relatedOrderId: order.outTradeNo,
+            remark: '平台商品消费'
+          }
+          await this.storeTransactionRepo.create(dataDto, tx)
+
+          // 4.结算表--分钱规则(当前为平台订单，所以比例100%，店长收入为0)
+          const settlementRecordData = {
+            storeId: 'cmnyglwkl0001wkj0p7os6u8c',
+            managerId: 'cmnyglwkl0001wkj0p7os6u8c',
+            orderId: order.id,
+            orderAmount: order.actualPayment.toString(),
+            platformRate: '1',
+            platformFee: order.actualPayment.toString(),
+            managerIncome: '0',
+            status: SettlementStatusDto.PENDING,
+          }
+
+          await this.settlementRecordRepo.create(settlementRecordData, tx)
+
+          // 5.记录佣金流水表
+          await this.commissionRuleService.settleOrderCommission(
+            order.userId,
+            order.id,
+            Number(order.actualPayment),
+            tx
+          )
+        })
+      } catch (err) {
+        throw new BadRequestException('积分/佣金计算错误')
+      }
     }
 
     // ============================== 处理会员订单回调 ==============================
@@ -113,8 +159,6 @@ export class NotifyService {
         vipStartTime,
         vipEndTime,
       )
-
-      // 4.奖励上级佣金/积分
     }
   }
 

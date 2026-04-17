@@ -2,7 +2,7 @@ import axios from 'axios'
 
 // 请求微信V3支付
 export async function createWechatPay(body, auth) {
-  return axios.post(process.env.PAY_URL as string, body, { headers: { Authorization: auth } })
+  return axios.post(process.env.PAY_URL as string, body, { headers: { Authorization: auth }, proxy: false })
 }
 
 // 请求微信退款

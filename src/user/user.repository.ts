@@ -133,20 +133,33 @@ export class UserRepository {
   }
 
   // 新增用户积分
-  updateUserIncScore(userId: string, score: number) {
-    return this.prisma.user.update({
+  updateUserIncScore(userId: string, score: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.update({
       where: { id: userId },
       data: { score: { increment: score } },
     })
   }
 
   // 根据openid扣除用户积分
-  updateUserDecScore(openid: string, score: number) {
-    return this.prisma.user.update({
+  updateUserDecScore(openid: string, score: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.update({
       where: { openid },
       data: { score: { decrement: score } },
     })
   }
+
+  // =================== 佣金 ===================
+
+  // 新增佣金
+  // updateUserIncBalance(userId: string, amount: string, tx?: Prisma.TransactionClient) {
+  //   const db = tx ?? this.prisma
+  //   return this.prisma.user.update({
+  //     where: { id: userId },
+  //     data: { settle_balance: { increment: new Prisma.Decimal(amount) } }
+  //   })
+  // }
 
   // =================== 查询上下级 ===================
 
@@ -195,8 +208,9 @@ export class UserRepository {
   }
 
   // 查询用户的上级--2级
-  findParentUser(userId: string) {
-    return this.prisma.user.findUnique({
+  findParentUser(userId: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.findUnique({
       where: { id: userId },
       include: { inviter: { include: { inviter: true } } }
     })

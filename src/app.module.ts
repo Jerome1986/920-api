@@ -15,9 +15,8 @@ import { ProductModelModule } from './product-model/product-model.module'
 import { TocProductImageModule } from './product-image/product-image.module'
 import { ProductSkuModule } from './product-sku/product-sku.module'
 import { RateRuleModule } from './rate-rule/rate-rule.module'
-import { TocOrderModule } from './toc-order/toc-order.module'
-import { TocOrderProductModule } from './toc-order-product/toc-order-product.module'
-import { TocOrderAddressModule } from './toc-order-address/toc-order-address.module'
+import { OrderModule } from './order/order.module'
+import { OrderAddressModule } from './order-address/order-address.module'
 import { PaymentModule } from './payment/payment.module'
 import { NotifyModule } from './notify/notify.module'
 import { PointsFlowModule } from './points-flow/points-flow.module'
@@ -29,6 +28,11 @@ import { StockModelModule } from './stock-model/stock-model.module';
 import { StoreModule } from './store/store.module';
 import { StoreInventoryModule } from './store-inventory/store-inventory.module';
 import { CommissionRuleModule } from './commission-rule/commission-rule.module';
+import { OrderProductModule } from './order-product/order-product.module'
+import { StoreTransactionModule } from './store-transaction/store-transaction.module';
+import { SettlementRecordModule } from './settlement-record/settlement-record.module';
+import { WalletModule } from './wallet/wallet.module';
+import { WalletTransactionModule } from './wallet-transaction/wallet-transaction.module';
 
 @Module({
   imports: [
@@ -49,9 +53,9 @@ import { CommissionRuleModule } from './commission-rule/commission-rule.module';
     TocProductImageModule,
     ProductSkuModule,
     RateRuleModule,
-    TocOrderModule,
-    TocOrderProductModule,
-    TocOrderAddressModule,
+    OrderModule,
+    OrderProductModule,
+    OrderAddressModule,
     PaymentModule,
     NotifyModule,
     PointsFlowModule,
@@ -62,8 +66,12 @@ import { CommissionRuleModule } from './commission-rule/commission-rule.module';
     StoreModule,
     StoreInventoryModule,
     CommissionRuleModule,
+    StoreTransactionModule,
+    SettlementRecordModule,
+    WalletModule,
+    WalletTransactionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }

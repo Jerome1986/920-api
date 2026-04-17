@@ -18,6 +18,7 @@ export class WxUtil {
         js_code: code,
         grant_type: 'authorization_code',
       },
+      proxy: false,
     })
 
     return res.data

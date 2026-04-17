@@ -17,8 +17,8 @@ export class StoreController {
   // 获取所有门店
   @Get()
   async findAll(@Query() query: { pageNum: string, pageSize: string }) {
-    const pageNum = Number(query.pageNum)
-    const pageSize = Number(query.pageSize)
+    const pageNum = Number(query.pageNum) || 1
+    const pageSize = Number(query.pageSize) || 10
     return this.storeService.findAll(pageNum, pageSize)
   }
 

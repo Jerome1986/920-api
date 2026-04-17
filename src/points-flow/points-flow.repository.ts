@@ -2,14 +2,16 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { CreatePointsFlowDto } from './dto/create-points-flow.dto'
 import { PointsFlowTypeQuery } from './dto/query-points-flow.dto'
+import { Prisma } from '@prisma/client'
 
 @Injectable()
 export class PointsFlowRepository {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // 插入积分明细
-  create(pointsFlowDto: CreatePointsFlowDto) {
-    return this.prisma.pointsFlow.create({
+  create(pointsFlowDto: CreatePointsFlowDto, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.pointsFlow.create({
       data: pointsFlowDto,
     })
   }

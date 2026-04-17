@@ -23,7 +23,8 @@ enum adminRole {
 enum userRole {
   USER // 普通用户
   VIP // 会员
-  MANAGER // 管理员
+  MANAGER // 店长
+  PLATFORM // 平台
 }
 
 // 通用激活/禁用状态
@@ -41,6 +42,13 @@ enum OrderStatus {
   CANCELLED
   PROCESSING
   REFUNDED
+}
+
+// 分类/商品目标枚举
+enum Target {
+  ALL
+  TOC
+  TOB
 }
 
 /// 会员订单状态
@@ -63,8 +71,96 @@ enum PaymentMethod {
 // 积分流水进出类型
 enum PointsFlowType {
   INCOME
-  EXPENSE // 可选，根据你的业务扩展
+  EXPENSE
 }
+
+// =================================== 资金模块状态枚举 ===================================
+
+/// 门店收入类型
+enum StoreTransactionType {
+  /// 收入（用户消费）
+  INCOME
+  /// 支出（进货）
+  EXPENSE
+}
+
+/// 业务类型
+enum StoreBizType {
+  /// 商品销售
+  PRODUCT
+  /// 服务（如贴膜）
+  SERVICE
+  /// 进货
+  PURCHASE
+}
+
+/// 结算状态 （结算表）
+enum SettlementStatus {
+  /// 待结算（订单已支付，但未完成）
+  PENDING
+  /// 已结算（已进入钱包）
+  SETTLED
+  /// 已取消（订单取消）
+  CANCELLED
+  /// 已退款（已结算后冲正）
+  REFUNDED
+}
+
+/// 佣金到账状态 （佣金表）
+enum CommissionStatus {
+  /// 待结算
+  PENDING
+  /// 已到账
+  SETTLED
+  /// 已取消（订单未完成）
+  CANCELLED
+  /// 已撤回（退款后冲正）
+  REVERSED
+}
+
+/// 佣金来源
+enum CommissionSource {
+  /// 平台承担
+  PLATFORM
+  /// 店长承担
+  MANAGER
+}
+
+/// 钱包收支方向
+enum WalletTransactionType {
+  /// 收入
+  IN
+  /// 支出 
+  OUT
+}
+
+/// 钱包业务类型
+enum WalletBizType {
+  /// 结算收入
+  SETTLEMENT
+  /// 佣金收入/支出 
+  COMMISSION
+  /// 提现
+  WITHDRAW
+  /// 退款
+  REFUND
+  /// 冲正（佣金回收）
+  REVERSE
+}
+
+/// 提现状态
+enum WithdrawStatus {
+  /// 申请中
+  APPLYING
+  /// 已通过
+  APPROVED
+  /// 已拒绝
+  REJECTED
+  /// 已打款
+  PAID
+}
+
+// =================================== 申请表 ===================================
 
 // 招聘申请审核状态枚举
 enum ReviewStatus {
@@ -79,14 +175,7 @@ enum ApplyType {
   BUSINESS
 }
 
-// 分类/商品目标枚举
-enum Target {
-  TOC
-  TOB
-  ALL
-}
-
-// ===================== 集合 =====================
+// =================================== 集合 ===================================
 
 // 管理员表
 model Admin {
@@ -290,12 +379,6 @@ model User {
   myCodeUrl         String?      @map("my_code_url")
   /// 平台积分
   score             Int          @default(0)
-  /// 店长运营资金
-  operating_balance Decimal?     @default(0) @db.Decimal(10, 2)
-  /// 店长待结算余额 
-  settle_balance    Decimal?     @default(0) @db.Decimal(10, 2)
-  /// 冻结金额，当待结算金额进入结算状态，生成账单，待结算金额将进入冻结金额，禁止使用
-  lockedAmount      Decimal?     @default(0) @map("locked_amount") @db.Decimal(10, 2)
   /// 用户更新头像的次数，超过1天后会重置
   avatarUpdateCount Int?         @default(3) @map("avatar_update_count")
   /// 更新头像的时间
@@ -490,7 +573,7 @@ model Order {
   transactionId String? @map("transaction_id")
 
   status OrderStatus
-  target Target      @default(ALL)
+  target Target      @default(TOC)
 
   openid    String
   userId    String  @map("user_id")
@@ -569,6 +652,126 @@ model OrderAddress {
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_address")
+}
+
+/// ========================= 资金模块 =========================
+
+/// 门店流水/业务记录
+model StoreTransaction {
+  id             Int                  @id @default(autoincrement())
+  /// 门店ID（平台消费可用 cmnyglwkl0001wkj0p7os6u8c = 平台虚拟门店）
+  storeId        String               @map("store_id")
+  /// 操作人（用户 / 店长 / 员工）      
+  operatorId     String?              @map("operator_id")
+  /// 消费者 ID 
+  consumerId     String?              @map("consumer_id") // 谁消费（核心字段）
+  /// 类型：INCOME（收入） / EXPENSE（支出）
+  type           StoreTransactionType
+  /// 业务类型：PRODUCT（商品）/ SERVICE（服务）/ PURCHASE（进货）  
+  bizType        StoreBizType         @map("bize_type")
+  /// 金额（只记录业务金额）
+  amount         Decimal              @db.Decimal(10, 2)
+  /// 关联订单ID（消费）
+  relatedOrderId String?              @map("related_order_id")
+  /// 关联业务ID（如进货单）    
+  relatedBizId   String?              @map("related_biz_id")
+  /// 备注（如：平台商品消费）
+  remark         String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("store_transaction")
+}
+
+/// 结算表 
+model SettlementRecord {
+  id        Int    @id @default(autoincrement())
+  /// 门店ID（平台=cmnyglwkl0001wkj0p7os6u8c）
+  storeId   String @map("store_id")
+  /// 店长ID（平台=cmnyglwkl0001wkj0p7os6u8c）       
+  managerId String @map("manager_id")
+
+  /// 订单ID（唯一，防重复结算）
+  orderId       String           @unique @map("order_id")
+  /// 订单金额
+  orderAmount   Decimal          @map("order_amount") @db.Decimal(10, 2)
+  /// 平台抽成比例（%）
+  platformRate  Decimal          @map("platform_rate") @db.Decimal(5, 2)
+  /// 平台抽成金额
+  platformFee   Decimal          @map("platform_fee") @db.Decimal(10, 2)
+  /// 店长应得（平台消费为0）
+  managerIncome Decimal          @default(0.00) @map("manager_income") @db.Decimal(10, 2)
+  /// 状态：PENDING / SETTLED / CANCELLED / REFUNDED
+  status        SettlementStatus
+  /// 结算时间
+  settledAt     DateTime?        @map("settle_at")
+
+  createdAt DateTime @default(now()) @map("create_at")
+
+  @@map("settlement_record")
+}
+
+/// 佣金表
+model CommissionRecord {
+  id               Int              @id @default(autoincrement())
+  /// 收佣人（上级）
+  userId           String           @map("user_id")
+  /// 贡献人（消费用户）      
+  fromUserId       String           @map("from_user_id")
+  /// 类型：ORDER（消费） / PURCHASE（进货） / SERVICE (服务/线下贴膜)
+  type             StoreBizType
+  /// 关联ID（订单ID或业务ID）
+  relatedId        String           @map("related_id")
+  /// 佣金金额
+  amount           Decimal          @db.Decimal(10, 2)
+  /// 佣金比例
+  rate             Decimal          @db.Decimal(5, 2)
+  /// 来源：PLATFORM（平台出）/ MANAGER（店长出）
+  commissionSource CommissionSource @map("commission_source")
+  /// 状态：PENDING / SETTLED
+  status           CommissionStatus @default(PENDING)
+  /// 结算时间 
+  settledAt        DateTime?        @map("settled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("commission_record")
+}
+
+/// 钱包
+model Wallet {
+  userId           String  @id @map("user_id")
+  /// 总余额
+  balance          Decimal @default(0) @db.Decimal(10, 2)
+  /// 可用余额
+  availableBalance Decimal @default(0) @map("available_balance") @db.Decimal(10, 2)
+  /// 冻结金额
+  frozenBalance    Decimal @default(0) @map("frozen_balance") @db.Decimal(10, 2)
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+/// 资金流水(钱包)
+model WalletTransaction {
+  id           Int                   @id @default(autoincrement())
+  /// 账户ID（用户 / 店长 / 平台）
+  userId       String                @map("user_id")
+  /// IN（收入）/ OUT（支出）
+  type         WalletTransactionType
+  /// SETTLEMENT / COMMISSION / WITHDRAW
+  bizType      WalletBizType         @map("biz_type")
+  /// 变动金额
+  amount       Decimal               @db.Decimal(10, 2)
+  /// 变动后余额（用于审计）
+  balanceAfter Decimal               @map("balance_after") @db.Decimal(10, 2)
+  /// 关联ID（结算ID / 佣金ID）
+  relatedId    Int?                  @map("related_id")
+  /// 备注（如：订单佣金）
+  remark       String?
+
+  createdAt DateTime @default(now()) @map("create_at")
+
+  @@map("wallet_transaction")
 }
 
 /// ========================= 会员相关 =========================

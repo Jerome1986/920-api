@@ -16,6 +16,7 @@ export class ProductRepository {
         where: { target, hot: 'ENABLE' },
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
+        include: { images: true, models: true, skus: true },
       }),
       this.prisma.product.count({ where: { hot: 'ENABLE' } }),
     ])
@@ -108,7 +109,7 @@ export class ProductRepository {
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.product.count({ where: { categoryId } }), 
+      this.prisma.product.count({ where: { categoryId } }),
     ])
   }
 
