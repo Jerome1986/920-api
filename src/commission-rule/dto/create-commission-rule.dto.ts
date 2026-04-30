@@ -52,6 +52,6 @@ export class CreateCommissionRecordDto {
   @IsDecimal()
   rate: string
 
-  @IsEnum(StoreBizTypeParams)
+  @IsEnum(CommissionSourceParams)
   commissionSource: CommissionSourceParams
 }

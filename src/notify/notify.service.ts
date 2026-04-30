@@ -2,7 +2,6 @@ import { BadRequestException, Injectable } from '@nestjs/common'
 import { OrderRepository } from 'src/order/order.repository'
 import { UserRepository } from 'src/user/user.repository'
 import { PointsFlowRepository } from 'src/points-flow/points-flow.repository'
-import { RateRuleRepository } from 'src/rate-rule/rate-rule.repository'
 import { decryptWechatData } from 'src/utils/decryptWechatData'
 import { termToMs } from 'src/utils/vipComputer'
 import { VipOrderRepository } from 'src/vip-order/vip-order.repository'
@@ -14,19 +13,25 @@ import { ParamsStoreBizType, ParamsStoreTransactionType } from 'src/store-transa
 import { SettlementRecordRepository } from 'src/settlement-record/settlement-record.repository'
 import { SettlementStatusDto } from 'src/settlement-record/dto/create-settlement-record.dto'
 import { CommissionRuleService } from 'src/commission-rule/commission-rule.service'
+import { CommissionSourceParams, StoreBizTypeParams } from 'src/commission-rule/dto/create-commission-rule.dto'
+import { StoreServiceOrderRepository } from 'src/store-service-order/store-service-order.repository'
+import { AuthRepository } from 'src/auth/auth.repository'
+import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
 
 @Injectable()
 export class NotifyService {
   constructor(
-    private tocOrderRepo: OrderRepository,
+    private OrderRepo: OrderRepository,
     private userRepo: UserRepository,
     private pointsFlowRepo: PointsFlowRepository,
-    private rateRuleRepo: RateRuleRepository,
     private vipOrderRepo: VipOrderRepository,
     private commissionRuleRepo: CommissionRuleRepository,
     private storeTransactionRepo: StoreTransactionRepository,
     private settlementRecordRepo: SettlementRecordRepository,
     private commissionRuleService: CommissionRuleService,
+    private storeServiceOrderRepo: StoreServiceOrderRepository,
+    private storeInventoryRepo: StoreInventoryRepositroy,
+    private authRepo: AuthRepository,
     private prisma: PrismaService
   ) { }
 
@@ -43,29 +48,126 @@ export class NotifyService {
     console.log('支付成功回调', result)
     let openid = result.payer.openid
     const outTradeNo = result.out_trade_no
-
+    // 查询订单 幂等校验
+    const order = await this.OrderRepo.findOne(outTradeNo)
+    if (order?.status === 'PAID') {
+      return { return_code: 'SUCCESS', return_msg: 'OK' }
+    }
     // ============================== 处理商品订单回调 ==============================
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('PRO')) {
-      // 调用商品订单成功回调函数
-      // 1.更新订单状态
-      const order = await this.tocOrderRepo.statusOrderUpdate(
-        outTradeNo,
-        'PAID',
-        result.transaction_id,
-      )
-      // 查询用户积分
-      const user = await this.userRepo.findUserScore(openid)
-      if (!user) {
-        throw new BadRequestException('当前用户不存在')
-      }
-
       // 开启事务
       try {
         await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          // 1.更新订单状态
+          const updateOrder = await this.OrderRepo.statusOrderUpdate(
+            outTradeNo,
+            'PAID',
+            result.transaction_id,
+            tx
+          )
+          // 查询用户积分
+          const user = await this.userRepo.findUserScore(openid, tx)
+          if (!user) {
+            throw new BadRequestException('当前用户不存在')
+          }
+
+          // 2.如果当前订单使用积分，则扣除积分消耗
+          if (updateOrder.usedScore && updateOrder.usedScore > 0) {
+            // 2.1 查询用户是否足够
+            if (user?.score && user?.score > updateOrder.usedScore) {
+              // 2.2 扣除用户积分--向上取整
+              const changeDecScore = Math.ceil(updateOrder.usedScore)
+              console.log('积分抵扣', changeDecScore)
+              const updatedScoreUser = await this.userRepo.updateUserDecScore(openid, changeDecScore, tx)
+              // 2.3 更新积分明细
+              await this.pointsFlowRepo.create({
+                userId: user.id,
+                type: 'EXPENSE',
+                amount: changeDecScore,
+                balance: updatedScoreUser.score,
+                source: '商品购买',
+              }, tx)
+            } else {
+              throw new BadRequestException('积分不足')
+            }
+          }
+
+          // 3.商品为平台消费，记录门店流水，平台ID为cmnyglwkl0001wkj0p7os6u8c
+          const dataDto = {
+            storeId: process.env.PLATFORM_STORE_ID as string,
+            consumerId: user.id,
+            type: ParamsStoreTransactionType.INCOME,
+            bizType: ParamsStoreBizType.PRODUCT,
+            amount: updateOrder.actualPayment.toString(),
+            relatedOrderId: updateOrder.outTradeNo,
+            remark: '平台商品消费'
+          }
+          await this.storeTransactionRepo.create(dataDto, tx)
+
+          // 4.计算佣金
+          const commissionList = await this.commissionRuleService.calculateCommission(
+            updateOrder.userId,
+            Number(updateOrder.actualPayment),
+            tx
+          )
+
+          // 5.计算结算表
+          const totalAmount = Number(updateOrder.actualPayment)
+          const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0)
+          const platformFee = totalAmount - totalCommission
+
+          await this.settlementRecordRepo.create({
+            storeId: process.env.PLATFORM_STORE_ID as string,
+            managerId: process.env.PLATFORM_STORE_ID as string,
+
+            orderId: updateOrder.id,
+            orderAmount: totalAmount.toFixed(2),
+
+            platformRate: (platformFee / totalAmount).toFixed(2),
+            platformFee: platformFee.toFixed(2),
+
+            managerIncome: '0.00',
+
+            totalCommission: totalCommission.toFixed(2),
+
+            status: SettlementStatusDto.PENDING,
+          }, tx)
+
+          console.log('平台佣金比例', (platformFee / totalAmount).toFixed(2))
+
+          // 6.佣金明细
+          await this.commissionRuleService.createCommissionRecords(
+            commissionList,
+            updateOrder.id,
+            updateOrder.userId,
+            StoreBizTypeParams.PRODUCT,
+            CommissionSourceParams.PLATFORM,
+            tx
+          )
+        })
+      } catch (err) {
+        console.error(err)
+        throw new BadRequestException('积分/佣金计算错误')
+      }
+    }
+    // ============================== 店长进货订单回调 ==============================
+    if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('MANAGER')) {
+      try {
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          // 1.更新订单状态
+          const order = await this.OrderRepo.statusOrderUpdate(
+            outTradeNo,
+            'PAID',
+            result.transaction_id,
+            tx
+          )
+          // 查询用户积分
+          const user = await this.userRepo.findUserScore(openid, tx)
+          if (!user) {
+            throw new BadRequestException('当前用户不存在')
+          }
           // 2.如果当前订单使用积分，则扣除积分消耗
           if (order.usedScore && order.usedScore > 0) {
-            console.log('进入积分')
-
             // 2.1 查询用户是否足够
             if (user?.score && user?.score > order.usedScore) {
               // 2.2 扣除用户积分--向上取整
@@ -85,45 +187,148 @@ export class NotifyService {
             }
           }
 
-          // 3.商品为平台消费，记录门店流水，平台ID为cmnyglwkl0001wkj0p7os6u8c
+          // 3.记录门店业务流水
           const dataDto = {
-            storeId: 'cmnyglwkl0001wkj0p7os6u8c',
+            storeId: user.storeId as string,
             consumerId: user.id,
-            type: ParamsStoreTransactionType.INCOME,
-            bizType: ParamsStoreBizType.PRODUCT,
+            type: ParamsStoreTransactionType.EXPENSE,
+            bizType: ParamsStoreBizType.PURCHASE,
             amount: order.actualPayment.toString(),
             relatedOrderId: order.outTradeNo,
-            remark: '平台商品消费'
+            remark: '个人进货'
           }
           await this.storeTransactionRepo.create(dataDto, tx)
 
-          // 4.结算表--分钱规则(当前为平台订单，所以比例100%，店长收入为0)
-          const settlementRecordData = {
-            storeId: 'cmnyglwkl0001wkj0p7os6u8c',
-            managerId: 'cmnyglwkl0001wkj0p7os6u8c',
-            orderId: order.id,
-            orderAmount: order.actualPayment.toString(),
-            platformRate: '1',
-            platformFee: order.actualPayment.toString(),
-            managerIncome: '0',
-            status: SettlementStatusDto.PENDING,
-          }
-
-          await this.settlementRecordRepo.create(settlementRecordData, tx)
-
-          // 5.记录佣金流水表
-          await this.commissionRuleService.settleOrderCommission(
+          // 4.计算佣金
+          const commissionList = await this.commissionRuleService.calculateCommission(
             order.userId,
-            order.id,
             Number(order.actualPayment),
+            tx
+          )
+
+          // 5.计算结算表
+          const totalAmount = Number(order.actualPayment)
+          const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0)
+          const platformFee = totalAmount - totalCommission
+
+          await this.settlementRecordRepo.create({
+            storeId: process.env.PLATFORM_STORE_ID as string,
+            managerId: process.env.PLATFORM_STORE_ID as string,
+
+            orderId: order.id,
+            orderAmount: totalAmount.toFixed(2),
+
+            platformRate: (platformFee / totalAmount).toFixed(2),
+            platformFee: platformFee.toFixed(2),
+
+            managerIncome: '0.00',
+
+            totalCommission: totalCommission.toFixed(2),
+
+            status: SettlementStatusDto.PENDING,
+          }, tx)
+
+          console.log('平台佣金比例', (platformFee / totalAmount).toFixed(2))
+
+          // 6.佣金明细
+          await this.commissionRuleService.createCommissionRecords(
+            commissionList,
+            order.id,
+            order.userId,
+            StoreBizTypeParams.PRODUCT,
+            CommissionSourceParams.PLATFORM,
             tx
           )
         })
       } catch (err) {
-        throw new BadRequestException('积分/佣金计算错误')
+        console.error(err)
       }
     }
 
+    // ============================== 线下贴膜服务订单回调 ==============================
+    if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('SERVICE')) {
+      await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+        // 1.更新订单
+        const order = await this.storeServiceOrderRepo.updateOrder(result.out_trade_no, 'PAID')
+
+        // 1.1 查询订单商品对应的库存
+        const inventoryStock = await this.storeInventoryRepo.findOneStock(order.storeId, order.skuId, tx)
+        if (!inventoryStock) throw new BadRequestException('当前商品已售空')
+        // 1.2 扣除库存
+        const decrementStock = await this.storeInventoryRepo.decrementStock(order.storeId, order.skuId, 1, tx)
+        console.log('库存结果', decrementStock)
+
+        if (!decrementStock) throw new BadRequestException('库存扣减失败')
+
+        // 2.根据openid查询用户，查询消费者是否为平台用户
+        const consumer = await this.userRepo.findUserByOpenid(openid)
+        console.log('消费者用户', consumer)
+
+        // 3.记录门店业务流水
+        const dataDto = {
+          storeId: order.storeId,
+          consumerId: consumer?.id ?? openid,
+          type: ParamsStoreTransactionType.INCOME,
+          bizType: ParamsStoreBizType.SERVICE,
+          amount: order.actualPayment.toString(),
+          relatedOrderId: order.outTradeNo,
+          remark: '线下贴膜服务'
+        }
+        await this.storeTransactionRepo.create(dataDto, tx)
+
+        // 4.计算佣金
+        let commissionList
+        if (consumer?.id) {
+          commissionList = await this.commissionRuleService.calculateCommission(
+            consumer.id,
+            Number(order.actualPayment),
+            tx
+          )
+        }
+        console.log('计算佣金', commissionList)
+
+        // 5.记录结算表
+        const totalAmount = Number(order.actualPayment)
+        const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0)
+        // 5.1 获取抽成比例
+        const rate = await this.commissionRuleRepo.findAll()
+        const platformRate = rate[0].platformRate.toFixed(2)
+        const platformFee = totalAmount * Number(platformRate)
+        const managerIncome = totalAmount - totalCommission - platformFee
+        // 5.2 根据门店ID拿到店长ID
+        const manager = await this.userRepo.findUserIdByShop(order.storeId)
+        if (!manager) throw new BadRequestException('该门店还没有设置店长')
+        // 5.3 计算结算表
+        await this.settlementRecordRepo.create({
+          storeId: order.storeId,
+          managerId: manager.id,
+
+          orderId: order.id,
+          orderAmount: totalAmount.toFixed(2),
+
+          platformRate: (platformFee / totalAmount).toFixed(2),
+          platformFee: platformFee.toFixed(2),
+
+          managerIncome: managerIncome.toFixed(2),
+
+          totalCommission: totalCommission.toFixed(2),
+
+          status: SettlementStatusDto.PENDING,
+        }, tx)
+
+        // 6.佣金明细
+        if (consumer?.id) {
+          await this.commissionRuleService.createCommissionRecords(
+            commissionList,
+            order.id,
+            consumer?.id,
+            StoreBizTypeParams.SERVICE,
+            CommissionSourceParams.MANAGER,
+            tx
+          )
+        }
+      })
+    }
     // ============================== 处理会员订单回调 ==============================
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('VIP')) {
       console.log('会员回调')
@@ -160,12 +365,14 @@ export class NotifyService {
         vipEndTime,
       )
     }
+
+    return { return_code: 'SUCCESS', return_msg: 'OK' }
   }
 
   // 微信退款回调
   async wxRefund(data: any) {
     const key = process.env.API_V3_KEY
-    console.log('key', key)
+    // console.log('key', key)
     if (!key) throw new Error('API_V3_KEY 未配置')
     // 获取回调参数
     const { associated_data, ciphertext, nonce } = data.resource
@@ -173,12 +380,80 @@ export class NotifyService {
     const decryptedData = decryptWechatData(key, associated_data, ciphertext, nonce)
     console.log('解密', decryptedData)
     const outTradeNo = decryptedData.out_trade_no
+
+    // 查询订单 幂等校验
+    const order = await this.OrderRepo.findOne(outTradeNo)
+    console.log('订单状态', order?.status)
+
+    if (order?.status === 'REFUNDED') {
+      return { return_code: 'SUCCESS', return_msg: 'OK' }
+    }
+
     // 如果回调结果为 SUCCESS 说明退款已成功，则同步更新订单状态
     if (decryptedData.refund_status === 'SUCCESS') {
-      console.log('更新订单')
+      console.log('退款成功')
+      let step = 'transaction'
+      try {
+        // 事务开始
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          // 1.更新订单状态
+          step = 'statusOrderUpdate'
+          const refundOrder = await this.OrderRepo.statusOrderUpdate(outTradeNo, 'REFUNDED', undefined, tx)
+          // console.log('更新结果', refundOrder)
+          // 2.退还积分
+          let updatedScoreByUser
+          if (refundOrder.usedScore && refundOrder.usedScore > 0) {
+            step = 'incScore'
+            updatedScoreByUser = await this.userRepo.updateUserIncScore(refundOrder.userId, refundOrder.usedScore, tx)
+            // console.log('更新用户', updatedScoreByUser)
 
-      const refundOrder = await this.tocOrderRepo.statusOrderUpdate(outTradeNo, 'REFUNDED')
-      console.log('更新结果', refundOrder)
+            step = 'pointsFlow'
+            const points = await this.pointsFlowRepo.create({
+              userId: refundOrder.userId,
+              type: 'INCOME',
+              amount: refundOrder.usedScore,
+              balance: updatedScoreByUser.score,
+              source: '订单退款',
+            }, tx)
+            // console.log('积分流水', points)
+          }
+
+          // 3.门店流水冲正
+          if (refundOrder.target === 'TOB') {
+            step = 'storeTransaction'
+            const dataDto = {
+              storeId: updatedScoreByUser.storeId as string,
+              consumerId: refundOrder.userId,
+              type: ParamsStoreTransactionType.INCOME,
+              bizType: ParamsStoreBizType.PURCHASE,
+              amount: refundOrder.actualPayment.toString(),
+              relatedOrderId: refundOrder.outTradeNo,
+              remark: '订单退款'
+            }
+            const storeTransaction = await this.storeTransactionRepo.create(dataDto, tx)
+            // console.log('门店流水', storeTransaction)
+          }
+
+          // 4.标记结算作废
+          step = 'settlement'
+          const settlement = await this.settlementRecordRepo.updateStatus(
+            refundOrder.id,
+            SettlementStatusDto.CANCELLED,
+            tx
+          )
+          // console.log('门店结算', settlement)
+
+          // 5.佣金流水标记为已取消
+          step = 'commission'
+          const commission = await this.commissionRuleRepo.updateCommissionRecordByStatus(refundOrder.id, 'CANCELLED', tx)
+          // console.log('佣金标记', commission)
+
+        })
+      } catch (err) {
+        console.error(`[wxRefund] step=${step}`, err)
+        throw new BadRequestException('退款故障')
+      }
     }
+    return { return_code: 'SUCCESS', return_msg: 'OK' }
   }
 }

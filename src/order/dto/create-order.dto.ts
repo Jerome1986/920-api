@@ -13,6 +13,13 @@ import {
 import { CreateOrderAddressDto } from 'src/order-address/dto/create-order-address.dto'
 import { CreateOrderProductDto } from 'src/order-product/dto/create-order-product.dto'
 
+// 分类/商品目标枚举
+export enum TargetDto {
+  TOC = "TOC",
+  TOB = "TOB"
+}
+
+
 export class CreateOrderDto {
   @IsString()
   @IsNotEmpty({ message: 'openid不可以为空' })
@@ -22,9 +29,9 @@ export class CreateOrderDto {
   @IsNotEmpty({ message: '用户ID不可以为空' })
   userId: string
 
-  @IsString()
+  @IsEnum(TargetDto)
   @IsNotEmpty({ message: '订单类型不可以为空' })
-  target: string
+  target: TargetDto
 
   @IsOptional()
   @IsString()

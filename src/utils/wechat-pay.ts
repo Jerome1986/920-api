@@ -13,7 +13,29 @@ export async function refundWxchatPay(body, auth) {
       'Content-Type': 'application/json',
       Accept: 'application/json',
     },
+    proxy: false
   })
+}
+
+// 请求微信 Native 下单请求
+export async function nativeWechatOrder(body, mchid, nonceStr, timestamp, serial_no, signature) {
+  return axios.post(
+    process.env.NATIVE_URL as string,
+    body,
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization':
+          `WECHATPAY2-SHA256-RSA2048 ` +
+          `mchid="${mchid}",` +
+          `nonce_str="${nonceStr}",` +
+          `timestamp="${timestamp}",` +
+          `serial_no="${serial_no}",` +
+          `signature="${signature}"`
+      }
+    }
+  )
 }
 
 export function getPrivateKey() {

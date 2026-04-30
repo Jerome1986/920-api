@@ -25,7 +25,7 @@ export class SettlementRecordRepository {
   updateStatus(orderId: string, status: SettlementStatusDto, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.settlementRecord.update({
-      where: { orderId, status: 'PENDING' },
+      where: { orderId },
       data: { status }
     })
   }

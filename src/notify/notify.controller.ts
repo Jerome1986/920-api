@@ -8,14 +8,14 @@ export class NotifyController {
   // 支付回调
   @Post()
   async create(@Body() data: any, @Res() res) {
-    await this.notifyService.wxNotify(data)
-    res.status(200).json({ return_code: 'SUCCESS', return_msg: 'OK' })
+    const result = await this.notifyService.wxNotify(data)
+    res.status(200).json(result)
   }
 
   // 退款回调
   @Post('refund')
   async refund(@Body() data: any, @Res() res) {
-    await this.notifyService.wxRefund(data)
-    res.status(200).json({ return_code: 'SUCCESS', return_msg: 'OK' })
+    const result = await this.notifyService.wxRefund(data)
+    res.status(200).json(result)
   }
 }

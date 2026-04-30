@@ -23,12 +23,43 @@ export class UserRepository {
     ])
   }
 
+  // 根据ID批量查询用户
+  findByIds(userIds: string[]) {
+    return this.prisma.user.findMany({
+      where: { id: { in: userIds } }
+    })
+  }
+
   // 获取指定用户信息
   async findOne(id: string, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return await db.user.findUnique({
       where: { id },
     })
+  }
+
+  // 根据openid获取用户信息
+  findUserByOpenid(openid: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.findFirst({ where: { openid } })
+  }
+
+  // 根据门店ID查询店长的ID
+  findUserIdByShop(storeId: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.findFirst({ where: { storeId, role: 'MANAGER' } })
+  }
+
+  // 获取门店下的会员用户
+  async storeByVip(inviterId: string, pageNum: number, pageSize: number) {
+    return await Promise.all([
+      this.prisma.user.findMany({
+        where: { inviterId, role: 'VIP' },
+        skip: (pageNum - 1) * pageSize,
+        take: pageSize
+      }),
+      this.prisma.user.count({ where: { inviterId, role: 'VIP' } })
+    ])
   }
 
   // 搜索用户(手机号/邀请码)
@@ -128,11 +159,12 @@ export class UserRepository {
   // =================== 积分操作 ===================
 
   // 查询用户积分
-  findUserScore(openid: string) {
-    return this.prisma.user.findUnique({ where: { openid } })
+  findUserScore(openid: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.findUnique({ where: { openid } })
   }
 
-  // 新增用户积分
+  // 增加用户积分
   updateUserIncScore(userId: string, score: number, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.user.update({

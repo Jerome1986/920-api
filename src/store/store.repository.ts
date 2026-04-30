@@ -1,9 +1,8 @@
-import { Injectable, Delete } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateStoreDto } from "./dto/create-store.dto";
 import { Prisma } from "@prisma/client";
 import { UpdateStoreDto } from "./dto/update-store.dto";
-import { SetManagerStore } from "./dto/set-manager-store-dto";
 
 @Injectable()
 export class StoreRepository {
@@ -14,6 +13,7 @@ export class StoreRepository {
     const db = tx ?? this.prisma
     return db.store.create({ data: createStoreDto })
   }
+
 
   // 获取所有门店
   async findAll(pageNum: number, pageSize: number) {

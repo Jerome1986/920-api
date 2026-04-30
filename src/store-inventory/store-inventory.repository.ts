@@ -3,7 +3,6 @@ import { PrismaService } from "src/prisma/prisma.service";
 import { CreateStoreInventoryDto } from "./dto/create-store-inventory.dto";
 import { Prisma } from "@prisma/client";
 import { SearchStoreInventoryDto } from "./dto/search-store-inventory-dto";
-import { normalize } from "src/utils/normalize";
 
 @Injectable()
 export class StoreInventoryRepositroy {
@@ -25,10 +24,47 @@ export class StoreInventoryRepositroy {
     ])
   }
 
-  // 批量增加门店库存
+  // 批量创建门店库存
   createMany(createStoreInventoryDto: CreateStoreInventoryDto[], tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.storeInventory.createMany({ data: createStoreInventoryDto })
+  }
+
+  // 增加门店库存
+  incrementStock(storeId: string, skuId: number, categoryId: number, quantity: number, costPrice: number, salePrice: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.storeInventory.upsert({
+      where: { storeId_skuId: { storeId, skuId } },
+      update: { stock: { increment: quantity } },
+      create: {
+        storeId,
+        skuId,
+        categoryId,
+        stock: quantity,
+        lockedStock: 0,
+        soldCount: 0,
+        costPrice,
+        salePrice,
+        status: 'ACTIVE'
+      }
+    })
+  }
+
+  // 减少门店库存
+  decrementStock(storeId: string, skuId: number, quantity: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.storeInventory.update({
+      where: { storeId_skuId: { storeId, skuId } },
+      data: { stock: { decrement: quantity } },
+    })
+  }
+
+  // 查询库存里某个商品是否有库存
+  findOneStock(storeId: string, skuId: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.storeInventory.findUnique({
+      where: { storeId_skuId: { storeId, skuId }, stock: { gt: 0 } },
+    })
   }
 
   // 根据关键词和分类搜索库存商品

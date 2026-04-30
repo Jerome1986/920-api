@@ -12,4 +12,11 @@ export class WallettransactionRepository {
     const db = tx ?? this.prisma
     return db.walletTransaction.create({ data: createWalletTransactionDto })
   }
+
+  // 获取个人钱包交易记录
+  findByUser(userId: string) {
+    return this.prisma.walletTransaction.findMany({
+      where: { userId: userId }
+    })
+  }
 }

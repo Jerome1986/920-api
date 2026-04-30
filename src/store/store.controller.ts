@@ -22,6 +22,14 @@ export class StoreController {
     return this.storeService.findAll(pageNum, pageSize)
   }
 
+  // 获取门店会员用户
+  @Get('vip/:inviterId')
+  async storeByVip(@Param('inviterId') inviterId: string, @Query() query: { pageNum: string, pageSize: string }) {
+    const pageNum = Number(query.pageNum) || 1
+    const pageSize = Number(query.pageSize) || 10
+    return this.storeService.storeByVip(inviterId, pageNum, pageSize)
+  }
+
   // 获取门店详情
   @Get('detail/:id')
   async findOne(@Param('id') id: string) {
@@ -57,4 +65,6 @@ export class StoreController {
   async remove(@Param('id') id: string) {
     return this.storeService.remove(id)
   }
+
+
 }

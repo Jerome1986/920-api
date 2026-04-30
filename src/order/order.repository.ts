@@ -11,12 +11,17 @@ export class OrderRepository {
 
   // 商品订单创建-支付订单
   create(createTocOrderDto: CreateOrderDto, tx: Prisma.TransactionClient) {
-    const outTradeNo = generateOrderNo('PRO')
+    const target = createTocOrderDto.target
+    let outTradeNo = generateOrderNo('MANAGER')
+    if (target === 'TOC') {
+      outTradeNo = generateOrderNo('PRO')
+    }
+
     return tx.order.create({
       data: {
         outTradeNo,
         status: 'PENDING',
-        target: 'TOC',
+        target,
 
         openid: createTocOrderDto.openid,
         userId: createTocOrderDto.userId,
@@ -56,10 +61,10 @@ export class OrderRepository {
   }
 
   // 查询用户订单
-  async findUserOrder(userId: string, status: OrderQueryStatus, pageNum: number, pageSize: number) {
+  async findUserOrder(userId: string, status: OrderQueryStatus, target: QueryTarget, pageNum: number, pageSize: number) {
     let where: any = {
       userId,
-      target: 'TOC'
+      target
     }
     if (status !== 'ALL') {
       where.status = status
@@ -76,14 +81,15 @@ export class OrderRepository {
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
         include: { products: true, address: true },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
       }),
       this.prisma.order.count({ where }),
     ])
   }
 
   // 更新指定订单状态
-  statusOrderUpdate(outTradeNo: string, status: OrderStatus, transactionId?: string) {
+  statusOrderUpdate(outTradeNo: string, status: OrderStatus, transactionId?: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
     console.log('status', status)
     const data: any = {
       status,
@@ -101,7 +107,7 @@ export class OrderRepository {
       data.shippedAt = new Date()
     }
 
-    return this.prisma.order.update({
+    return db.order.update({
       where: { outTradeNo },
       data,
     })

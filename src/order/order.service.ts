@@ -23,6 +23,8 @@ import { WalletRepository } from 'src/wallet/wallet.repository'
 import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
 import { WalletBizTypeDto, WalletTransactionTypeDto } from 'src/wallet-transaction/dto/create-wallet-transaction.dto'
 import { SettlementStatusDto } from 'src/settlement-record/dto/create-settlement-record.dto'
+import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
+import { ProductSkuRepository } from 'src/product-sku/product-sku.repository'
 
 @Injectable()
 export class OrderService {
@@ -38,10 +40,12 @@ export class OrderService {
     private settlementRecordRepo: SettlementRecordRepository,
     private commissionRuleRepo: CommissionRuleRepository,
     private walletRepo: WalletRepository,
-    private wallettransactionRepo: WallettransactionRepository
+    private wallettransactionRepo: WallettransactionRepository,
+    private storeInventoryRepo: StoreInventoryRepositroy,
+    private productSkuRepo: ProductSkuRepository
   ) { }
 
-  // c端商品订单创建-支付订单
+  // 商品订单创建-支付订单
   async create(orderDto: CreateOrderDto) {
     const { products, addressInfo } = orderDto
     try {
@@ -85,8 +89,8 @@ export class OrderService {
   }
 
   // 获取指定用户所有订单
-  async findUserOrder(userId: string, status: OrderQueryStatus, pageNum: number, pageSize: number) {
-    const [list, total] = await this.repo.findUserOrder(userId, status, pageNum, pageSize)
+  async findUserOrder(userId: string, status: OrderQueryStatus, target: QueryTarget, pageNum: number, pageSize: number) {
+    const [list, total] = await this.repo.findUserOrder(userId, status, target, pageNum, pageSize)
     return {
       list,
       total,
@@ -128,13 +132,13 @@ export class OrderService {
       const rate = scoreRule[0].earnRate as number
       const changeIncScore = Math.floor(Number(order.actualPayment) * rate)
       // 3.2 更新用户积分
-      const newUserScore = await this.userRepo.updateUserIncScore(userId, changeIncScore, tx)
+      const user = await this.userRepo.updateUserIncScore(userId, changeIncScore, tx)
       // 3.3 更新积分明细
       await this.pointsFlowRepo.create({
         userId,
         type: 'INCOME',
         amount: changeIncScore,
-        balance: newUserScore.score,
+        balance: user.score,
         source: '消费奖励',
       }, tx)
 
@@ -164,7 +168,7 @@ export class OrderService {
 
       // 6.如果佣金存在
       if (totalCommission > 0) {
-        // 6.1 扣余额
+        // 6.1 扣佣金
         const decrementWallet = await this.walletRepo.decrementBalance('1001', totalCommission, tx)
         // 6.2 写流水
         await this.wallettransactionRepo.create({
@@ -210,6 +214,27 @@ export class OrderService {
         SettlementStatusDto.SETTLED,
         tx
       )
+
+      // 8.如果是TOB，则需要将商品同步至门店库存
+      if (updateOrderRes.target === 'TOB') {
+        console.log('订单商品', order.products)
+
+        for (const product of order.products) {
+          // 8.1 查 SKU 信息
+          const sku = await this.productSkuRepo.findUnique(product.skuId!, tx)
+          if (!sku) throw new Error(`SKU ${product.skuId} 不存在`)
+          // 8.2 upsert 门店库存
+          await this.storeInventoryRepo.incrementStock(
+            user.storeId!,
+            product.skuId!,
+            sku?.product.categoryId,
+            product.quantity,
+            Number(sku?.costPrice),
+            Number(sku?.salePrice),
+            tx
+          )
+        }
+      }
 
       return updateOrderRes
     })
@@ -260,15 +285,11 @@ export class OrderService {
     // 如果返回结果是 PROCESSING ，说明微信已受理退款，且状态在退款中，则同步更新本地订单状态
     if (resp.data.status === 'PROCESSING') {
       // 4.将订单状态更新为已取消
-      await this.repo.statusOrderUpdate(outTradeNo, 'CANCELLED')
+      await this.repo.statusOrderUpdate(outTradeNo, 'PROCESSING')
       // 5.查询订单是否有积分抵扣
       // 6.退还积分
     }
 
-    return {
-      code: 200,
-      message: '退款申请已提交',
-      data: resp.data,
-    }
+    return resp.data
   }
 }

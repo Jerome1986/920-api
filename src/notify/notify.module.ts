@@ -12,6 +12,9 @@ import { StoreTransactionRepository } from 'src/store-transaction/store-transact
 import { SettlementRecordRepository } from 'src/settlement-record/settlement-record.repository'
 import { CommissionRuleModule } from 'src/commission-rule/commission-rule.module'
 import { CommissionRuleService } from 'src/commission-rule/commission-rule.service'
+import { StoreServiceOrderRepository } from 'src/store-service-order/store-service-order.repository'
+import { AuthRepository } from 'src/auth/auth.repository'
+import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
 
 @Module({
   controllers: [NotifyController],
@@ -27,7 +30,10 @@ import { CommissionRuleService } from 'src/commission-rule/commission-rule.servi
     StoreTransactionRepository,
     SettlementRecordRepository,
     CommissionRuleModule,
-    CommissionRuleService
+    CommissionRuleService,
+    StoreServiceOrderRepository,
+    AuthRepository,
+    StoreInventoryRepositroy
   ],
 })
 export class NotifyModule { }

@@ -2,9 +2,13 @@ import { Injectable } from '@nestjs/common'
 import { CreateProductSkuNestedDto } from './dto/create-product-sku.dto'
 import { Prisma } from '@prisma/client'
 import { UpdateProductSkuDto } from './dto/update-product-sku.dto'
+import { PrismaService } from 'src/prisma/prisma.service'
 
 @Injectable()
 export class ProductSkuRepository {
+  constructor(private prisma: PrismaService) { }
+
+  // 批量创建
   async createMany(
     productId: number,
     skus: CreateProductSkuNestedDto[],
@@ -46,6 +50,15 @@ export class ProductSkuRepository {
     })
   }
 
+  // 查找某个SKU
+  findUnique(skuId: number, tx: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.productSku.findUnique({
+      where: { id: skuId },
+      include: { product: true }
+    })
+  }
+
   // 根据ID批量删除
   async deleteManyByIds(productId: number, toDeleteIds: number[], tx: Prisma.TransactionClient) {
     return tx.productSku.deleteMany({
@@ -53,7 +66,7 @@ export class ProductSkuRepository {
         id: {
           in: toDeleteIds,
         },
-        productId, // 👈 防止误删别的商品的SKU
+        productId, // 防止误删别的商品的SKU
       },
     })
   }

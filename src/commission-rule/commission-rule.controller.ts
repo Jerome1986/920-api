@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
 import { CommissionRuleService } from './commission-rule.service';
 import { UpdateCommissionRuleDto } from './dto/update-commission-rule.dto';
 
@@ -10,6 +10,14 @@ export class CommissionRuleController {
   @Get()
   findAll() {
     return this.commissionRuleService.findAll()
+  }
+
+  // 获取用户佣金明细
+  @Get('detail/:userId')
+  findOneByUser(@Param('userId') userId: string, @Query() query: { pageNum: string, pageSize: string }) {
+    const pageNum = Number(query.pageNum) || 1
+    const pageSize = Number(query.pageSize) || 10
+    return this.commissionRuleService.findOneByUser(userId, pageNum, pageSize)
   }
 
   // 设置总佣金

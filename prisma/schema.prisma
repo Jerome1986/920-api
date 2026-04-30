@@ -68,10 +68,20 @@ enum PaymentMethod {
   balance
 }
 
-// 积分流水进出类型
+/// 积分流水进出类型
 enum PointsFlowType {
   INCOME
   EXPENSE
+}
+
+/// 线下服务订单状态
+enum ServiceOrderStatus {
+  PENDING // 待支付（扫码但未支付）
+  PAID // 已支付（可开始服务）
+  IN_SERVICE // 服务中（已开始）
+  COMPLETED // 已完成
+  CANCELLED // 已取消
+  REFUNDED // 已退款
 }
 
 // =================================== 资金模块状态枚举 ===================================
@@ -393,11 +403,14 @@ model User {
   pointsFlows PointsFlow[]
   /// VIP订单表
   vipOrder    VipOrder[]
+  /// 商品订单
+  orders      Order[]
 
   /// 门店归属--门店下有多少个会员/用户是否为店长 按身份区分
-  store        Store? @relation("StoreVip", fields: [storeId], references: [id])
+  store              Store?              @relation("StoreVip", fields: [storeId], references: [id])
   /// 店长--一个店长管理一个门店
-  managedStore Store? @relation("StoreManager")
+  managedStore       Store?              @relation("StoreManager")
+  storeServiceOrders StoreServiceOrder[]
 
   @@index([mobile])
   @@index([inviterId])
@@ -443,17 +456,18 @@ model Store {
   // ================= 关系 =================
 
   /// 门店下用户（会员）--- 门店推广了多少个会员
-  users          User[]           @relation("StoreVip")
+  users              User[]              @relation("StoreVip")
   /// 门店店长
-  manager        User?            @relation("StoreManager", fields: [managerId], references: [id])
+  manager            User?               @relation("StoreManager", fields: [managerId], references: [id])
   /// 上级门店
-  parent         Store?           @relation("StoreParent", fields: [parentStoreId], references: [id])
+  parent             Store?              @relation("StoreParent", fields: [parentStoreId], references: [id])
   /// 下级门店
-  children       Store[]          @relation("StoreParent")
+  children           Store[]             @relation("StoreParent")
   // 初始化库存模版
-  inventoryModel StockModel?      @relation("StockModelToStore", fields: [inventoryTemplateId], references: [id])
+  inventoryModel     StockModel?         @relation("StockModelToStore", fields: [inventoryTemplateId], references: [id])
   /// 门店库存
-  inventory      StoreInventory[]
+  inventory          StoreInventory[]
+  storeServiceOrders StoreServiceOrder[]
 
   @@index([managerId])
   @@index([parentStoreId])
@@ -486,6 +500,7 @@ model StoreInventory {
   sku       ProductSku @relation(fields: [skuId], references: [id])
   categorys Category   @relation(fields: [categoryId], references: [id])
 
+  @@unique([storeId, skuId])
   @@index([storeId, categoryId])
   @@map("store_inventory")
 }
@@ -606,6 +621,7 @@ model Order {
   updatedAt    DateTime  @updatedAt @map("update_at")
 
   // 关联
+  user     User           @relation(fields: [userId], references: [id])
   products OrderProduct[]
   address  OrderAddress?
 
@@ -654,6 +670,94 @@ model OrderAddress {
   @@map("order_address")
 }
 
+// 会员订单表（用户购买VIP的订单记录）
+model VipOrder {
+  id            Int     @id @default(autoincrement())
+  outTradeNo    String  @unique
+  transactionId String?
+
+  openid     String
+  userId     String
+  userMobile String
+  vipProId   Int
+
+  vipLevel     Int
+  // 会员名称
+  vipLevelText String         @db.VarChar(50)
+  // 支付金额（元）
+  amount       Decimal        @db.Decimal(10, 2)
+  // 折扣金额
+  discount     Decimal        @db.Decimal(10, 2)
+  // 限制次数
+  limit        Int
+  // 最大用户数
+  maxUsers     Int
+  // 有效期天数
+  term         String         @db.VarChar(10)
+  remark       String?
+  // 订单状态 PAID 等
+  status       VipOrderStatus
+  // 创建时间
+  createdAt    DateTime       @default(now())
+  // 更新时间
+  updatedAt    DateTime       @updatedAt
+
+  /// 关联
+  vipPlan VipPlan @relation(fields: [vipProId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([userId]) // 用户ID索引
+  @@index([outTradeNo]) // 订单号索引
+  @@index([status]) // 状态索引
+  @@map("vip_order") // 数据库表名
+}
+
+/// 线下贴膜订单表
+model StoreServiceOrder {
+  id            String             @id @default(cuid())
+  /// 门店ID
+  storeId       String             @map("store_id")
+  /// 用户ID
+  userId        String?            @map("user_id")
+  /// 微信OPENID
+  openid        String?
+  /// 订单编号
+  outTradeNo    String             @unique @map("out_trade_no")
+  /// 商品ID
+  productId     Int                @map("product_id")
+  productName   String?            @map("product_name") @db.VarChar(255)
+  productCover  String?
+  /// SKUID
+  skuId         Int                @map("sku_id")
+  /// 货号
+  skuNo         String             @map("sku_no")
+  /// 原价
+  originalPrice Decimal            @map("original_price") @db.Decimal(10, 2)
+  /// 实付金额
+  actualPayment Decimal            @map("actual_payment") @db.Decimal(10, 2)
+  /// 支付方式
+  paymentMethod PaymentMethod      @default(wechat)
+  /// 状态（核心）
+  status        ServiceOrderStatus @default(PENDING)
+  /// 完成时间
+  completedAt   DateTime?          @map("completed_at")
+  /// 取消时间
+  cancelledAt   DateTime?          @map("cancelled_at")
+  /// 支付时间
+  paidAt        DateTime?          @map("paid_at")
+  /// 备注
+  remark        String?            @default("线下贴膜")
+  createdAt     DateTime           @default(now()) @map("created_at")
+
+  user  User? @relation(fields: [userId], references: [id])
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@index([storeId])
+  @@index([userId])
+  @@index([outTradeNo])
+  @@map("store_service_order")
+}
+
 /// ========================= 资金模块 =========================
 
 /// 门店流水/业务记录
@@ -664,7 +768,7 @@ model StoreTransaction {
   /// 操作人（用户 / 店长 / 员工）      
   operatorId     String?              @map("operator_id")
   /// 消费者 ID 
-  consumerId     String?              @map("consumer_id") // 谁消费（核心字段）
+  consumerId     String?              @map("consumer_id") // 谁消费（核心字段）注册了就是userId,没注册就是openid
   /// 类型：INCOME（收入） / EXPENSE（支出）
   type           StoreTransactionType
   /// 业务类型：PRODUCT（商品）/ SERVICE（服务）/ PURCHASE（进货）  
@@ -692,19 +796,21 @@ model SettlementRecord {
   managerId String @map("manager_id")
 
   /// 订单ID（唯一，防重复结算）
-  orderId       String           @unique @map("order_id")
+  orderId         String           @unique @map("order_id")
   /// 订单金额
-  orderAmount   Decimal          @map("order_amount") @db.Decimal(10, 2)
+  orderAmount     Decimal          @map("order_amount") @db.Decimal(10, 2)
   /// 平台抽成比例（%）
-  platformRate  Decimal          @map("platform_rate") @db.Decimal(5, 2)
+  platformRate    Decimal          @map("platform_rate") @db.Decimal(5, 2)
   /// 平台抽成金额
-  platformFee   Decimal          @map("platform_fee") @db.Decimal(10, 2)
+  platformFee     Decimal          @map("platform_fee") @db.Decimal(10, 2)
   /// 店长应得（平台消费为0）
-  managerIncome Decimal          @default(0.00) @map("manager_income") @db.Decimal(10, 2)
+  managerIncome   Decimal          @default(0.00) @map("manager_income") @db.Decimal(10, 2)
+  /// 上级佣金
+  totalCommission Decimal          @default(0.00) @map("total_commission") @db.Decimal(10, 2)
   /// 状态：PENDING / SETTLED / CANCELLED / REFUNDED
-  status        SettlementStatus
+  status          SettlementStatus
   /// 结算时间
-  settledAt     DateTime?        @map("settle_at")
+  settledAt       DateTime?        @map("settle_at")
 
   createdAt DateTime @default(now()) @map("create_at")
 
@@ -774,6 +880,24 @@ model WalletTransaction {
   @@map("wallet_transaction")
 }
 
+/// 佣金规则
+model CommissionRule {
+  id           Int     @id @default(autoincrement())
+  /// 一级佣金比例
+  level1Rate   Decimal @map("level1_rate") @db.Decimal(10, 2)
+  /// 二级佣金比例
+  level2Rate   Decimal @map("level2_rate") @db.Decimal(10, 2)
+  /// 平台抽成比例
+  platformRate Decimal @map("platform_rate") @db.Decimal(10, 2)
+  /// 总比例
+  totalRate    Decimal @map("total_rate") @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("commission_rule")
+}
+
 /// ========================= 会员相关 =========================
 // 会员套餐表
 model VipPlan {
@@ -793,66 +917,6 @@ model VipPlan {
   vipOrder     VipOrder[]
 
   @@map("vip_plan")
-}
-
-// 会员订单表（用户购买VIP的订单记录）
-model VipOrder {
-  id            Int     @id @default(autoincrement())
-  outTradeNo    String  @unique
-  transactionId String?
-
-  openid     String
-  userId     String
-  userMobile String
-  vipProId   Int
-
-  vipLevel     Int
-  // 会员名称
-  vipLevelText String         @db.VarChar(50)
-  // 支付金额（元）
-  amount       Decimal        @db.Decimal(10, 2)
-  // 折扣金额
-  discount     Decimal        @db.Decimal(10, 2)
-  // 限制次数
-  limit        Int
-  // 最大用户数
-  maxUsers     Int
-  // 有效期天数
-  term         String         @db.VarChar(10)
-  remark       String?
-  // 订单状态 PAID 等
-  status       VipOrderStatus
-  // 创建时间
-  createdAt    DateTime       @default(now())
-  // 更新时间
-  updatedAt    DateTime       @updatedAt
-
-  /// 关联
-  vipPlan VipPlan @relation(fields: [vipProId], references: [id], onDelete: Cascade)
-  user    User    @relation(fields: [userId], references: [id])
-
-  @@index([userId]) // 用户ID索引
-  @@index([outTradeNo]) // 订单号索引
-  @@index([status]) // 状态索引
-  @@map("vip_order") // 数据库表名
-}
-
-/// 佣金规则
-model CommissionRule {
-  id           Int     @id @default(autoincrement())
-  /// 一级佣金比例
-  level1Rate   Decimal @map("level1_rate") @db.Decimal(10, 2)
-  /// 二级佣金比例
-  level2Rate   Decimal @map("level2_rate") @db.Decimal(10, 2)
-  /// 平台抽成比例
-  platformRate Decimal @map("platform_rate") @db.Decimal(10, 2)
-  /// 总比例
-  totalRate    Decimal @map("total_rate") @db.Decimal(10, 2)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@map("commission_rule")
 }
 
 /// 申请表

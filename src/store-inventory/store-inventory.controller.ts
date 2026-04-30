@@ -1,7 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseIntPipe, BadRequestException } from '@nestjs/common';
 import { StoreInventoryService } from './store-inventory.service';
-import { CreateStoreInventoryDto } from './dto/create-store-inventory.dto';
-import { UpdateStoreInventoryDto } from './dto/update-store-inventory.dto';
 import { SearchStoreInventoryDto } from './dto/search-store-inventory-dto';
 
 @Controller('store-inventory')

@@ -10,7 +10,7 @@ import { UpdateOrderCompletedDto } from './dto/update-order-completed.dto'
 export class OrderController {
   constructor(private readonly OrderService: OrderService) { }
 
-  // c端商品订单创建-支付订单
+  // 商品订单创建-支付订单
   @Post('create')
   async create(@Body() createOrderDto: CreateOrderDto) {
     return this.OrderService.create(createOrderDto)
@@ -30,7 +30,7 @@ export class OrderController {
     const pageNum = Number(query.pageNum) || 1
     const pageSize = Number(query.pageSize) || 10
 
-    return this.OrderService.findUserOrder(userId, query.status, pageNum, pageSize)
+    return this.OrderService.findUserOrder(userId, query.status, query.target, pageNum, pageSize)
   }
 
   // 获取订单详情

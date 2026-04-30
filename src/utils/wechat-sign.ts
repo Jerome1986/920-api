@@ -50,7 +50,7 @@ export class WechatSign {
   }
 
   /**
-   * 核心签名方法
+   * 支付签名方法
    */
   private sign(message: string) {
     const signer = crypto.createSign('RSA-SHA256')
@@ -64,5 +64,25 @@ export class WechatSign {
       },
       'base64',
     )
+  }
+
+  // NATIVE下单签名
+  nativeSign(method: string, url: string, body: string) {
+    const timestamp = Math.floor(Date.now() / 1000).toString()
+    const nonceStr = crypto.randomBytes(16).toString('hex')
+
+    const message =
+      `${method}\n${url}\n${timestamp}\n${nonceStr}\n${body}\n`
+
+    const signature = crypto
+      .createSign('RSA-SHA256')
+      .update(message)
+      .sign(this.privateKey, 'base64')
+
+    return {
+      timestamp,
+      nonceStr,
+      signature
+    }
   }
 }

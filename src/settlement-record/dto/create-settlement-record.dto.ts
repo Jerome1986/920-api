@@ -33,6 +33,10 @@ export class CreateSettlementRecordDto {
   @IsString()
   managerIncome: string
 
+  @IsOptional()
+  @IsString()
+  totalCommission?: string
+
   @IsEnum(SettlementStatusDto)
   status: SettlementStatusDto
 

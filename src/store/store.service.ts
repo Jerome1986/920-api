@@ -81,6 +81,21 @@ export class StoreService {
     }
   }
 
+  // 获取门店会员用户
+  async storeByVip(inviterId: string, pageNum: number, pageSize: number) {
+    console.log(inviterId)
+
+    if (!inviterId) throw new BadRequestException('用户ID不存在')
+    const [list, total] = await this.userRepo.storeByVip(inviterId, pageNum, pageSize)
+    return {
+      list,
+      total,
+      pageNum,
+      pageSize,
+      totalPage: Math.ceil(total / pageSize)
+    }
+  }
+
   // 获取所有门店
   async findAll(pageNum: number, pageSize: number) {
     // 1.获取门店信息
@@ -149,7 +164,17 @@ export class StoreService {
 
   // 获取用户（店长）当前门店信息
   async managerFindOne(storeId: string, userId: string) {
-    return this.storeRepo.managerFindOne(storeId, userId)
+    // 1.获取店长对应的门店
+    const store = await this.storeRepo.managerFindOne(storeId, userId)
+    if (!store) throw new BadRequestException('门店不存在')
+    // 2.获取门店钱包
+    const wallet = await this.walletRepo.findOne(userId)
+    if (!wallet) throw new BadRequestException('门店钱包错误')
+    const data = {
+      ...store,
+      wallet
+    }
+    return data
   }
 
   // 更新门店基础信息

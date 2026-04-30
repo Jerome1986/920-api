@@ -9,8 +9,22 @@ export class CommissionRuleRepository {
   constructor(private prisma: PrismaService) { }
 
   // 获取佣金规则
-  findAll() {
-    return this.prisma.commissionRule.findMany()
+  findAll(tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.commissionRule.findMany()
+  }
+
+  // 获取用户佣金明细
+  async findOneByUser(userId: string, pageNum: number, pageSize: number) {
+    return await Promise.all([
+      this.prisma.commissionRecord.findMany({
+        where: { userId, status: 'SETTLED' },
+        skip: (pageNum - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: 'desc' }
+      }),
+      this.prisma.commissionRecord.count({ where: { userId, status: 'SETTLED' } })
+    ])
   }
 
   // 更新佣金规则
@@ -47,7 +61,7 @@ export class CommissionRuleRepository {
   updateCommissionRecordByStatus(relatedId: string, status: CommissionStatus, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.commissionRecord.updateMany({
-      where: { relatedId, status: 'PENDING' },
+      where: { relatedId },
       data: { status }
     })
   }

@@ -13,6 +13,8 @@ import { CommissionRuleService } from 'src/commission-rule/commission-rule.servi
 import { SettlementRecordRepository } from 'src/settlement-record/settlement-record.repository'
 import { WalletRepository } from 'src/wallet/wallet.repository'
 import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
+import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
+import { ProductSkuRepository } from 'src/product-sku/product-sku.repository'
 
 @Module({
   controllers: [OrderController],
@@ -29,7 +31,9 @@ import { WallettransactionRepository } from 'src/wallet-transaction/wallet-trans
     CommissionRuleService,
     SettlementRecordRepository,
     WalletRepository,
-    WallettransactionRepository
+    WallettransactionRepository,
+    StoreInventoryRepositroy,
+    ProductSkuRepository
   ],
 })
 export class OrderModule { }
