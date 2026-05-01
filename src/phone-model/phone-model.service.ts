@@ -26,6 +26,8 @@ export class PhoneModelService {
 
   // 识别设备型号--使用@customerio/devices库来识别
   deviceInfo(model: string) {
+    console.log('型号', model)
+
     if (!model) throw new BadRequestException('参数错误')
 
     let phoneName = '未知设备'

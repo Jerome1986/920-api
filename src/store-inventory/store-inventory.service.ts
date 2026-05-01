@@ -43,6 +43,8 @@ export class StoreInventoryService {
         ...items,
         productName: sku.product.name,
         productDec: sku.product.dec,
+        productId: sku.product.id,
+        cover: sku.image,
         skuNo: l.sku.product.skuNo,
         minStock: sku.minStock,
         models: l.sku.product.models

@@ -1,9 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
+import { WalletRepository } from './wallet.repository';
 
 @Injectable()
 export class WalletService {
+  constructor(private repo: WalletRepository) { }
+
   create(createWalletDto: CreateWalletDto) {
     return 'This action adds a new wallet';
   }
@@ -12,8 +15,9 @@ export class WalletService {
     return `This action returns all wallet`;
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} wallet`;
+  // 获取用户钱包
+  async findOne(userId: string) {
+    return this.repo.findOne(userId)
   }
 
   update(id: number, updateWalletDto: UpdateWalletDto) {

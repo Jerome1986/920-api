@@ -5,7 +5,7 @@ import { UpdateWalletDto } from './dto/update-wallet.dto';
 
 @Controller('wallet')
 export class WalletController {
-  constructor(private readonly walletService: WalletService) {}
+  constructor(private readonly walletService: WalletService) { }
 
   @Post()
   create(@Body() createWalletDto: CreateWalletDto) {
@@ -17,9 +17,10 @@ export class WalletController {
     return this.walletService.findAll();
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.walletService.findOne(+id);
+  // 获取用户钱包
+  @Get(':userId')
+  findOne(@Param('userId') userId: string) {
+    return this.walletService.findOne(userId)
   }
 
   @Patch(':id')
