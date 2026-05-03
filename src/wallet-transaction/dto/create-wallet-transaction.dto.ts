@@ -1,4 +1,4 @@
-import { IsEnum, IsIn, IsInt, IsOptional, IsString } from "class-validator"
+import { IsEnum, IsInt, IsOptional, IsString } from "class-validator"
 
 // 钱包收支方向
 export enum WalletTransactionTypeDto {
@@ -19,8 +19,6 @@ export enum WalletBizTypeDto {
   // 冲正（佣金回收）
   REVERSE = "REVERSE"
 }
-
-
 
 export class CreateWalletTransactionDto {
   @IsString()

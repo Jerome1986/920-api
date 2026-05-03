@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateWalletTransactionDto } from "./dto/create-wallet-transaction.dto";
 import { Prisma } from "@prisma/client";
+import { WalletFilterTab } from "./dto/query-wallet-transaction.dto";
 
 @Injectable()
 export class WallettransactionRepository {
@@ -14,9 +15,20 @@ export class WallettransactionRepository {
   }
 
   // 获取个人钱包交易记录
-  findByUser(userId: string) {
-    return this.prisma.walletTransaction.findMany({
-      where: { userId: userId }
-    })
+  async findByUser(userId: string, tab: WalletFilterTab, pageNum: number, pageSize: number) {
+    let where: any = {
+      userId
+    }
+    if (tab !== "ALL") where.type = tab
+
+    return await Promise.all([
+      this.prisma.walletTransaction.findMany({
+        where,
+        skip: (pageNum - 1) * pageSize,
+        take: pageSize,
+        orderBy: { createdAt: "desc" }
+      }),
+      this.prisma.walletTransaction.count({ where })
+    ])
   }
 }
