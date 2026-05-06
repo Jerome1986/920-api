@@ -24,6 +24,7 @@ export class StoreTransactionRepository {
     pageSize: number
   ) {
     const now = new Date()
+    // 时间映射
     const timeRangeMap: Record<TimeRangePreset, Date> = {
       today: new Date(now.setHours(0, 0, 0, 0)),
       month: new Date(now.getFullYear(), now.getMonth(), 1),

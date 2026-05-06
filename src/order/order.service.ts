@@ -200,7 +200,7 @@ export class OrderService {
           }, tx)
         }
 
-        // 6.4 更新佣金状态
+        // 6.4 更新佣金流水状态
         await this.commissionRuleRepo.updateCommissionRecordByStatus(
           updateOrderRes.id,
           'SETTLED',

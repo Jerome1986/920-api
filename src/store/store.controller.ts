@@ -3,6 +3,7 @@ import { StoreService } from './store.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
 import { SetManagerStore } from './dto/set-manager-store-dto';
+import { StoreDashboardDto } from './dto/store-dashboard.dto';
 
 @Controller('store')
 export class StoreController {
@@ -20,6 +21,12 @@ export class StoreController {
     const pageNum = Number(query.pageNum) || 1
     const pageSize = Number(query.pageSize) || 10
     return this.storeService.findAll(pageNum, pageSize)
+  }
+
+  // 门店经营概览
+  @Get('dashboard/:storeId')
+  async storeDashboard(@Param('storeId') storeId: string, @Query() storeDashboardDto: StoreDashboardDto) {
+    return this.storeService.storeDashboard(storeId, storeDashboardDto.userId, storeDashboardDto.timeRangePreset)
   }
 
   // 获取门店会员用户

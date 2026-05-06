@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { CreateOrderDto } from './dto/create-order.dto'
 import { generateOrderNo } from 'src/utils/generateOrderNo'
-import { OrderStatus, Prisma } from '@prisma/client'
+import { OrderStatus, Prisma, ServiceOrderStatus } from '@prisma/client'
 import { OrderQueryStatus, QueryTarget } from './dto/query-order.dto'
+import { TimeRangePreset } from 'src/store-transaction/dto/query-store-transaction.dto'
 
 @Injectable()
 export class OrderRepository {
@@ -130,5 +131,45 @@ export class OrderRepository {
       where: { outTradeNo },
       include: { products: true, address: true },
     })
+  }
+
+  // 获取店长的进货单 -- 根据时间获取
+  findTobOrder(userId: string, timeRangePreset: TimeRangePreset, status: OrderStatus) {
+    const now = new Date()
+    // 时间映射
+    const timeRangeMap: Record<TimeRangePreset, Date> = {
+      today: new Date(now.setHours(0, 0, 0, 0)),
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      year: new Date(now.getFullYear(), 0, 1),
+    }
+
+    let where: any = {
+      userId,
+      status,
+      createdAt: {
+        gte: timeRangeMap[timeRangePreset],
+      },
+    }
+    return this.prisma.order.findMany({ where })
+  }
+
+  // 获取指定门店服务订单(贴膜订单) -- 根据时间获取
+  findStoreOrder(storeId: string, timeRangePreset: TimeRangePreset, status: ServiceOrderStatus) {
+    const now = new Date()
+    // 时间映射
+    const timeRangeMap: Record<TimeRangePreset, Date> = {
+      today: new Date(now.setHours(0, 0, 0, 0)),
+      month: new Date(now.getFullYear(), now.getMonth(), 1),
+      year: new Date(now.getFullYear(), 0, 1),
+    }
+
+    let where: any = {
+      storeId,
+      status,
+      createdAt: {
+        gte: timeRangeMap[timeRangePreset],
+      },
+    }
+    return this.prisma.storeServiceOrder.findMany({ where })
   }
 }

@@ -6,6 +6,7 @@ import { UserRepository } from 'src/user/user.repository';
 import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
+import { OrderRepository } from 'src/order/order.repository';
 
 @Module({
   controllers: [StoreController],
@@ -15,7 +16,8 @@ import { WalletRepository } from 'src/wallet/wallet.repository';
     UserRepository,
     StockModelRepository,
     StoreInventoryRepositroy,
-    WalletRepository
+    WalletRepository,
+    OrderRepository
   ],
 })
 export class StoreModule { }

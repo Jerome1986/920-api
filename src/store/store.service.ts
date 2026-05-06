@@ -10,6 +10,8 @@ import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.re
 import { Decimal } from '@prisma/client/runtime/client';
 import { SetManagerStore } from './dto/set-manager-store-dto';
 import { WalletRepository } from 'src/wallet/wallet.repository';
+import { TimeRangePreset } from 'src/store-transaction/dto/query-store-transaction.dto';
+import { OrderRepository } from 'src/order/order.repository';
 
 @Injectable()
 export class StoreService {
@@ -19,7 +21,8 @@ export class StoreService {
     private userRepo: UserRepository,
     private storeStockModelRepo: StockModelRepository,
     private storeInventoryRepo: StoreInventoryRepositroy,
-    private walletRepo: WalletRepository
+    private walletRepo: WalletRepository,
+    private orderRepo: OrderRepository
   ) { }
 
   // 新增门店
@@ -126,6 +129,38 @@ export class StoreService {
       pageNum,
       pageSize,
       totalPage: Math.ceil(total / pageSize)
+    }
+  }
+
+  // 获取指定门店经营概览
+  async storeDashboard(storeId: string, userId: string, timeRangePreset: TimeRangePreset) {
+    // 1.获取门店所有的服务订单
+    const serviceOrder = await this.orderRepo.findStoreOrder(storeId, timeRangePreset, 'COMPLETED')
+    // 2.获取门店进货单
+    const tobOrder = await this.orderRepo.findTobOrder(userId, timeRangePreset, 'COMPLETED')
+    // 3.计算汇总
+    // 3.1 营业额
+    const turnoverAmount = serviceOrder.reduce((sum, service) => sum + Number(service.actualPayment), 0).toFixed(2)
+    // 3.2 服务数
+    const serviceCount = serviceOrder.length
+    // 3.3 客单价
+    const avgCustomerPrice = serviceCount > 0 ? (Number(turnoverAmount) / serviceCount).toFixed(2) : 0
+    // 3.4 进货支出
+    const purchaseExpense = tobOrder.reduce((sum, tob) => sum + Number(tob.actualPayment), 0).toFixed(2)
+    // 3.5 利润
+    const profitAmount = (Number(turnoverAmount) - Number(purchaseExpense)).toFixed(2)
+
+    return {
+      // 营业额
+      turnoverAmount,
+      // 服务订单数
+      serviceCount,
+      // 客单价
+      avgCustomerPrice,
+      // 进货支出
+      purchaseExpense,
+      // 利润
+      profitAmount
     }
   }
 

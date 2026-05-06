@@ -15,6 +15,8 @@ import { CommissionRuleService } from 'src/commission-rule/commission-rule.servi
 import { StoreServiceOrderRepository } from 'src/store-service-order/store-service-order.repository'
 import { AuthRepository } from 'src/auth/auth.repository'
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
+import { WalletRepository } from 'src/wallet/wallet.repository'
+import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
 
 @Module({
   controllers: [NotifyController],
@@ -33,7 +35,9 @@ import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.re
     CommissionRuleService,
     StoreServiceOrderRepository,
     AuthRepository,
-    StoreInventoryRepositroy
+    StoreInventoryRepositroy,
+    WalletRepository,
+    WallettransactionRepository
   ],
 })
 export class NotifyModule { }

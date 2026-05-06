@@ -35,12 +35,19 @@ enum commonStatus {
 
 /// 商品订单状态
 enum OrderStatus {
+  /// 待支付
   PENDING
+  /// 已支付
   PAID
+  /// 待发货
   SHIPPED
+  /// 已完成
   COMPLETED
+  /// 已取消
   CANCELLED
+  /// 退款中
   PROCESSING
+  /// 已退款
   REFUNDED
 }
 
@@ -755,6 +762,7 @@ model StoreServiceOrder {
   @@index([storeId])
   @@index([userId])
   @@index([outTradeNo])
+  @@index([storeId, status, createdAt])
   @@map("store_service_order")
 }
 

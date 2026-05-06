@@ -47,7 +47,7 @@ export class WalletRepository {
     const db = tx ?? this.prisma
     return db.wallet.update({
       where: { userId },
-      data: { balance: { increment: amount } }
+      data: { balance: { increment: amount }, availableBalance: { increment: amount } }
     })
   }
 
@@ -56,7 +56,7 @@ export class WalletRepository {
     const db = tx ?? this.prisma
     return db.wallet.update({
       where: { userId },
-      data: { balance: { decrement: amount } }
+      data: { balance: { decrement: amount }, availableBalance: { decrement: amount } }
     })
   }
 }

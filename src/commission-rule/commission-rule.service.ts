@@ -93,10 +93,12 @@ export class CommissionRuleService {
     actualPayment: number,
     tx: Prisma.TransactionClient
   ) {
+    // 获取佣金规则
     const commission = await this.commissionRuleRepo.findAll()
     const level1Rate = commission[0].level1Rate || 0
     const level2Rate = commission[0].level2Rate || 0
 
+    // 查询用户上级
     const res = await this.userRepo.findParentUser(userId, tx)
     const level1User = res?.inviter
     const level2User = level1User?.inviter

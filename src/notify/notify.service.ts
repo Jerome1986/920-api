@@ -15,8 +15,10 @@ import { SettlementStatusDto } from 'src/settlement-record/dto/create-settlement
 import { CommissionRuleService } from 'src/commission-rule/commission-rule.service'
 import { CommissionSourceParams, StoreBizTypeParams } from 'src/commission-rule/dto/create-commission-rule.dto'
 import { StoreServiceOrderRepository } from 'src/store-service-order/store-service-order.repository'
-import { AuthRepository } from 'src/auth/auth.repository'
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
+import { WalletRepository } from 'src/wallet/wallet.repository'
+import { WalletBizTypeDto, WalletTransactionTypeDto } from 'src/wallet-transaction/dto/create-wallet-transaction.dto'
+import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
 
 @Injectable()
 export class NotifyService {
@@ -31,7 +33,8 @@ export class NotifyService {
     private commissionRuleService: CommissionRuleService,
     private storeServiceOrderRepo: StoreServiceOrderRepository,
     private storeInventoryRepo: StoreInventoryRepositroy,
-    private authRepo: AuthRepository,
+    private walletRepo: WalletRepository,
+    private wallettransactionRepo: WallettransactionRepository,
     private prisma: PrismaService
   ) { }
 
@@ -276,30 +279,46 @@ export class NotifyService {
         }
         await this.storeTransactionRepo.create(dataDto, tx)
 
-        // 4.计算佣金
-        let commissionList
-        if (consumer?.id) {
-          commissionList = await this.commissionRuleService.calculateCommission(
-            consumer.id,
-            Number(order.actualPayment),
+        // 4.给门店上级返佣
+        // 4.1 根据门店ID拿到店长ID
+        const manager = await this.userRepo.findUserIdByShop(order.storeId)
+        if (!manager) throw new BadRequestException('该门店还没有设置店长')
+        // 4.2 计算佣金
+        const commissionList = await this.commissionRuleService.calculateCommission(
+          manager.id,
+          Number(order.actualPayment),
+          tx
+        )
+        // 如果有佣金
+        if (commissionList.length) {
+          // 4.3 记录佣金流水
+          await this.commissionRuleService.createCommissionRecords(
+            commissionList,
+            order.id,
+            manager?.id,
+            StoreBizTypeParams.SERVICE,
+            CommissionSourceParams.MANAGER,
             tx
           )
+          // 4.4 更新流水状态为结算
+          await this.commissionRuleRepo.updateCommissionRecordByStatus(
+            order.id,
+            'PENDING',
+            tx
+          )
+          console.log('计算佣金', commissionList)
         }
-        console.log('计算佣金', commissionList)
 
         // 5.记录结算表
         const totalAmount = Number(order.actualPayment)
-        const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0)
+        const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0) || 0
         // 5.1 获取抽成比例
         const rate = await this.commissionRuleRepo.findAll()
         const platformRate = rate[0].platformRate.toFixed(2)
         const platformFee = totalAmount * Number(platformRate)
         const managerIncome = totalAmount - totalCommission - platformFee
-        // 5.2 根据门店ID拿到店长ID
-        const manager = await this.userRepo.findUserIdByShop(order.storeId)
-        if (!manager) throw new BadRequestException('该门店还没有设置店长')
-        // 5.3 计算结算表
-        await this.settlementRecordRepo.create({
+        // 5.2 计算结算表
+        const settlement = await this.settlementRecordRepo.create({
           storeId: order.storeId,
           managerId: manager.id,
 
@@ -313,17 +332,47 @@ export class NotifyService {
 
           totalCommission: totalCommission.toFixed(2),
 
-          status: SettlementStatusDto.PENDING,
+          status: SettlementStatusDto.SETTLED,
         }, tx)
 
-        // 6.佣金明细
-        if (consumer?.id) {
-          await this.commissionRuleService.createCommissionRecords(
-            commissionList,
+        // 6.钱包记录
+        // 6.1 更新门店余额
+        const wallet = await this.walletRepo.incrementBalance(manager.id, Number(managerIncome), tx)
+        // 6.2 准备钱包流水参数--业务进账
+        const data = {
+          userId: wallet?.userId,
+          type: WalletTransactionTypeDto.IN,
+          bizType: WalletBizTypeDto.SETTLEMENT,
+          amount: Number(managerIncome),
+          balanceAfter: Number(wallet.balance),
+          relatedId: settlement.id,
+          remark: '贴膜收入'
+        }
+        await this.wallettransactionRepo.create(data, tx)
+        // 6.3 更新上级余额
+        const commissions = await this.commissionRuleRepo.findCommissionRecord(order.id, tx)
+        if (totalCommission > 0) {
+          for (const commission of commissions) {
+            const userWallet = await this.walletRepo.incrementBalance(
+              commission.userId,
+              Number(commission.amount),
+              tx
+            )
+
+            await this.wallettransactionRepo.create({
+              userId: commission.userId,
+              type: WalletTransactionTypeDto.IN,
+              bizType: WalletBizTypeDto.COMMISSION,
+              amount: Number(commission.amount),
+              balanceAfter: Number(userWallet.balance),
+              relatedId: commission.id,
+              remark: '佣金收入'
+            }, tx)
+          }
+          // 更新佣金流水为已结算
+          await this.commissionRuleRepo.updateCommissionRecordByStatus(
             order.id,
-            consumer?.id,
-            StoreBizTypeParams.SERVICE,
-            CommissionSourceParams.MANAGER,
+            'SETTLED',
             tx
           )
         }
