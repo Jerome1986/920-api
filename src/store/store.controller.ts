@@ -37,6 +37,12 @@ export class StoreController {
     return this.storeService.storeByVip(inviterId, pageNum, pageSize)
   }
 
+  // 验证会员
+  @Post('checkMember')
+  async checkMember(@Body('mobile') mobile: string) {
+    return this.storeService.checkMember(mobile)
+  }
+
   // 获取门店详情
   @Get('detail/:id')
   async findOne(@Param('id') id: string) {

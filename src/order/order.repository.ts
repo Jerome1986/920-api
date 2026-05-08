@@ -172,4 +172,11 @@ export class OrderRepository {
     }
     return this.prisma.storeServiceOrder.findMany({ where })
   }
+
+  // 获取用户贴膜订单
+  findStoreByUserOrder(userId: string) {
+    return this.prisma.storeServiceOrder.findMany({
+      where: { userId, status: 'COMPLETED' }
+    })
+  }
 }

@@ -4,10 +4,9 @@ import { UpdateStoreDto } from './dto/update-store.dto';
 import { StoreRepository } from './store.repository';
 import { UserRepository } from 'src/user/user.repository';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, userRole } from '@prisma/client';
 import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
-import { Decimal } from '@prisma/client/runtime/client';
 import { SetManagerStore } from './dto/set-manager-store-dto';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { TimeRangePreset } from 'src/store-transaction/dto/query-store-transaction.dto';
@@ -89,13 +88,40 @@ export class StoreService {
     console.log(inviterId)
 
     if (!inviterId) throw new BadRequestException('用户ID不存在')
-    const [list, total] = await this.userRepo.storeByVip(inviterId, pageNum, pageSize)
+    const [vips, total] = await this.userRepo.storeByVip(inviterId, pageNum, pageSize)
+    // 获取每个门店会员的消费次数
+    const list: any[] = []
+    for (const item of vips) {
+      const userOrder = await this.orderRepo.findStoreByUserOrder(item.id)
+      list.push({
+        ...item,
+        serviceCount: userOrder.length
+      })
+    }
+
+
     return {
       list,
       total,
       pageNum,
       pageSize,
       totalPage: Math.ceil(total / pageSize)
+    }
+  }
+
+  // 验证会员
+  async checkMember(mobile: string) {
+    const user = await this.userRepo.userFindByPhone(mobile)
+    if (!user) throw new BadRequestException('用户未注册')
+    const now = new Date()
+    const vipEnd = user.vipEndTime ? new Date(user.vipEndTime) : null
+    const isVip = user.role === 'VIP' && vipEnd && vipEnd > now
+    return {
+      userId: user.id,
+      mobile: user.mobile,
+      isVip,
+      vipGift: user.vipGift,
+      vipEndTime: user.vipEndTime
     }
   }
 

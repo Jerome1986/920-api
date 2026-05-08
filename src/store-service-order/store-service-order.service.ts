@@ -6,10 +6,16 @@ import { WechatSign } from "src/utils/wechat-sign"
 import { getPrivateKey, nativeWechatOrder } from "src/utils/wechat-pay"
 import QRCode from 'qrcode'
 import { ServiceOrderStatus } from '@prisma/client'
+import { FreeStoreServiceOrderDto } from './dto/free-store-service-order.dto'
+import { UserRepository } from 'src/user/user.repository'
+import { generateOrderNo } from 'src/utils/generateOrderNo'
 
 @Injectable()
 export class StoreServiceOrderService {
-  constructor(private repo: StoreServiceOrderRepository) { }
+  constructor(
+    private repo: StoreServiceOrderRepository,
+    private userRepo: UserRepository
+  ) { }
 
   // 创建订单
   async create(createStoreServiceOrderDto: CreateStoreServiceOrderDto) {
@@ -67,6 +73,15 @@ export class StoreServiceOrderService {
         outTradeNo: body.out_trade_no
       }
     }
+  }
+
+  // 创建会员免费服务订单
+  async vipFreeOrderCreate(freeStoreServiceOrderDto: FreeStoreServiceOrderDto) {
+    const outTradeNo = generateOrderNo('FREESERVICE')
+    const user = await this.userRepo.userFindByPhone(freeStoreServiceOrderDto.memberPhone)
+    if (!user) throw new BadRequestException('用户未注册')
+    const freeOrder = await this.repo.vipFreeOrderCreate(outTradeNo, user.id, freeStoreServiceOrderDto)
+    return freeOrder
   }
 
   findAll() {
