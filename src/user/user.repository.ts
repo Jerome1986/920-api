@@ -156,6 +156,15 @@ export class UserRepository {
     return this.prisma.user.delete({ where: { id } })
   }
 
+  // 扣除会员免费次数
+  decVipGift(userId: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.user.update({
+      where: { id: userId, vipGift: { gte: 1 } },
+      data: { vipGift: { decrement: 1 }, lastGiftTime: new Date() }
+    })
+  }
+
   // =================== 积分操作 ===================
 
   // 查询用户积分

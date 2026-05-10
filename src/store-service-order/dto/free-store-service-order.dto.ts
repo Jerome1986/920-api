@@ -1,4 +1,3 @@
-import { PartialType } from "@nestjs/mapped-types";
 import { CreateStoreServiceOrderDto } from "./create-store-service-order.dto";
 import { IsString } from "class-validator";
 

@@ -390,6 +390,8 @@ model User {
   vipEndTime        DateTime?    @map("vip_end_time")
   /// 会员权益：免费贴膜次数
   vipGift           Int?         @map("vip_gift")
+  /// 最后一次免费贴膜的时间
+  lastGiftTime      DateTime?    @map("last_gift_time")
   /// 会员折扣
   vipDiscount       Int?         @map("vip_discount")
   /// 邀请码图片链接

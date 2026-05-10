@@ -4,6 +4,7 @@ import { CreateStoreServiceOrderDto } from './dto/create-store-service-order.dto
 import { UpdateStoreServiceOrderDto } from './dto/update-store-service-order.dto';
 import { ServiceOrderStatus } from '@prisma/client';
 import { FreeStoreServiceOrderDto } from './dto/free-store-service-order.dto';
+import { FreeStoreServiceOrderCompeletedDto } from './dto/free-store-service-order-completed.dto';
 
 @Controller('store-service-order')
 export class StoreServiceOrderController {
@@ -19,6 +20,12 @@ export class StoreServiceOrderController {
   @Post('freeAdd')
   async vipFreeOrderCreate(@Body() freeStoreServiceOrderDto: FreeStoreServiceOrderDto) {
     return this.storeServiceOrderService.vipFreeOrderCreate(freeStoreServiceOrderDto)
+  }
+
+  // 会员免费订单确认完成
+  @Post('freeOrderCompleted')
+  async vipFreeOrderCompleted(@Body() FreeOrderCompeletedDto: FreeStoreServiceOrderCompeletedDto) {
+    return this.storeServiceOrderService.vipFreeOrderCompleted(FreeOrderCompeletedDto.outTradeNo, FreeOrderCompeletedDto.status)
   }
 
   @Get()

@@ -2,9 +2,8 @@ import { Injectable } from "@nestjs/common"
 import { PrismaService } from "src/prisma/prisma.service"
 import { CreateStoreServiceOrderDto } from "./dto/create-store-service-order.dto"
 import { generateOrderNo } from "src/utils/generateOrderNo"
-import { ServiceOrderStatus } from "@prisma/client"
+import { Prisma, ServiceOrderStatus } from "@prisma/client"
 import { FreeStoreServiceOrderDto } from "./dto/free-store-service-order.dto"
-import { UserRepository } from "src/user/user.repository"
 
 
 @Injectable()
@@ -33,9 +32,9 @@ export class StoreServiceOrderRepository {
   }
 
   // 更新订单状态
-  updateOrder(outTradeNo: string, status: ServiceOrderStatus, openid?: string) {
+  updateOrder(outTradeNo: string, status: ServiceOrderStatus, openid?: string, tx?: Prisma.TransactionClient) {
     console.log(status)
-
+    const db = tx ?? this.prisma
     let data: any = {
       status
     }
@@ -46,7 +45,7 @@ export class StoreServiceOrderRepository {
       data.openid = openid
     }
 
-    return this.prisma.storeServiceOrder.update({
+    return db.storeServiceOrder.update({
       where: { outTradeNo },
       data
     })

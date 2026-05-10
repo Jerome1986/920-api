@@ -253,15 +253,9 @@ export class NotifyService {
       await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1.更新订单
         const order = await this.storeServiceOrderRepo.updateOrder(result.out_trade_no, 'PAID')
-
         // 1.1 查询订单商品对应的库存
         const inventoryStock = await this.storeInventoryRepo.findOneStock(order.storeId, order.skuId, tx)
         if (!inventoryStock) throw new BadRequestException('当前商品已售空')
-        // 1.2 扣除库存
-        const decrementStock = await this.storeInventoryRepo.decrementStock(order.storeId, order.skuId, 1, tx)
-        console.log('库存结果', decrementStock)
-
-        if (!decrementStock) throw new BadRequestException('库存扣减失败')
 
         // 2.根据openid查询用户，查询消费者是否为平台用户
         const consumer = await this.userRepo.findUserByOpenid(openid)

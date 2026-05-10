@@ -53,4 +53,9 @@ export class StoreInventoryService {
 
     return res
   }
+
+  // 减少门店库存
+  async decrementStoreStock(storeId: string, skuId: number, quantity: number) {
+    return this.storeInventoryRepo.decrementStock(storeId, skuId, quantity)
+  }
 }

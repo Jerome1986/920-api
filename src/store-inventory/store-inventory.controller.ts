@@ -18,8 +18,21 @@ export class StoreInventoryController {
     return this.storeInventoryService.findAllByStoreWithCategory(storeId, categoryId, pageNum, pageSize)
   }
 
+  // 根据关键词和分类搜索库存商品
   @Post('sell/search')
   async searchWithCategory(@Body() searchStoreInventoryDto: SearchStoreInventoryDto) {
     return this.storeInventoryService.searchWithCategory(searchStoreInventoryDto)
+  }
+
+  // 扣减对应门店对应某个商品的库存
+  @Patch('decrementStock/:storeId')
+  async decrementStoreStock(
+    @Param('storeId') storeId: string,
+    @Body('skuId') skuId: string,
+    @Body('quantity') quantity: string
+  ) {
+    console.log(skuId, quantity)
+
+    return this.storeInventoryService.decrementStoreStock(storeId, Number(skuId), Number(quantity))
   }
 }
