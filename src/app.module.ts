@@ -34,6 +34,7 @@ import { SettlementRecordModule } from './settlement-record/settlement-record.mo
 import { WalletModule } from './wallet/wallet.module';
 import { WalletTransactionModule } from './wallet-transaction/wallet-transaction.module';
 import { StoreServiceOrderModule } from './store-service-order/store-service-order.module';
+import { WalletWithdrawApplyModule } from './wallet-withdraw-apply/wallet-withdraw-apply.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { StoreServiceOrderModule } from './store-service-order/store-service-ord
     WalletModule,
     WalletTransactionModule,
     StoreServiceOrderModule,
+    WalletWithdrawApplyModule,
   ],
   controllers: [AppController],
   providers: [AppService],

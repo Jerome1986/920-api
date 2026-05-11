@@ -8,12 +8,9 @@ import { WalletFilterTab } from './dto/query-wallet-transaction.dto';
 export class WalletTransactionService {
   constructor(private repo: WallettransactionRepository) { }
 
+  // 创建钱包流水
   create(createWalletTransactionDto: CreateWalletTransactionDto) {
     return this.repo.create(createWalletTransactionDto)
-  }
-
-  findAll() {
-    return `This action returns all walletTransaction`;
   }
 
   // 获取个人流水
@@ -26,13 +23,5 @@ export class WalletTransactionService {
       pageSize,
       totalPage: Math.ceil(total / pageSize)
     }
-  }
-
-  update(id: number, updateWalletTransactionDto: UpdateWalletTransactionDto) {
-    return `This action updates a #${id} walletTransaction`;
-  }
-
-  remove(id: number) {
-    return `This action removes a #${id} walletTransaction`;
   }
 }

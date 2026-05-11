@@ -409,11 +409,13 @@ model User {
   invitees User[] @relation("UserInviter")
 
   /// 用户积分流水表
-  pointsFlows PointsFlow[]
+  pointsFlows           PointsFlow[]
   /// VIP订单表
-  vipOrder    VipOrder[]
+  vipOrder              VipOrder[]
   /// 商品订单
-  orders      Order[]
+  orders                Order[]
+  /// 提现申请
+  walletWithdrawApplies WalletWithdrawApply[]
 
   /// 门店归属--门店下有多少个会员/用户是否为店长 按身份区分
   store              Store?              @relation("StoreVip", fields: [storeId], references: [id])
@@ -867,6 +869,56 @@ model Wallet {
   frozenBalance    Decimal @default(0) @map("frozen_balance") @db.Decimal(10, 2)
 
   updatedAt DateTime @updatedAt @map("updated_at")
+}
+
+/// 提现申请表
+model WalletWithdrawApply {
+  id Int @id @default(autoincrement())
+
+  /// 提现单号
+  withdrawNo String @unique @default(cuid()) @map("withdraw_no")
+
+  /// 申请用户ID
+  userId String @map("user_id")
+
+  /// 提现金额
+  amount Decimal @db.Decimal(10, 2)
+
+  /// 状态：APPLYING / APPROVED / REJECTED / PAID
+  status WithdrawStatus @default(APPLYING)
+
+  /// 收款人姓名
+  payeeName String? @map("payee_name")
+
+  /// 收款账号 / openid / 支付宝账号等
+  payeeAccount String? @map("payee_account")
+
+  bankName String? @map("bank_name")
+
+  /// 审核人ID，对应 Admin.id
+  reviewerId Int? @map("reviewer_id")
+
+  /// 拒绝原因
+  rejectReason String? @map("reject_reason")
+
+  /// 申请时间
+  createdAt DateTime @default(now()) @map("created_at")
+
+  /// 审核时间
+  reviewedAt DateTime? @map("reviewed_at")
+
+  /// 打款时间
+  paidAt DateTime? @map("paid_at")
+
+  /// 更新时间
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("wallet_withdraw_apply")
 }
 
 /// 资金流水(钱包)

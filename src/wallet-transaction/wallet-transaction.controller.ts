@@ -1,21 +1,16 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
-import { WalletTransactionService } from './wallet-transaction.service';
-import { CreateWalletTransactionDto } from './dto/create-wallet-transaction.dto';
-import { UpdateWalletTransactionDto } from './dto/update-wallet-transaction.dto';
-import { QueryWalletTransactionDto } from './dto/query-wallet-transaction.dto';
+import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common'
+import { WalletTransactionService } from './wallet-transaction.service'
+import { CreateWalletTransactionDto } from './dto/create-wallet-transaction.dto'
+import { QueryWalletTransactionDto } from './dto/query-wallet-transaction.dto'
 
 @Controller('wallet-transaction')
 export class WalletTransactionController {
   constructor(private readonly walletTransactionService: WalletTransactionService) { }
 
+  // 创建钱包流水
   @Post()
   async create(@Body() createWalletTransactionDto: CreateWalletTransactionDto) {
     return this.walletTransactionService.create(createWalletTransactionDto)
-  }
-
-  @Get()
-  async findAll() {
-    return this.walletTransactionService.findAll()
   }
 
   // 获取个人钱包交易记录
@@ -26,15 +21,5 @@ export class WalletTransactionController {
     const tab = query.tab || "ALL"
 
     return this.walletTransactionService.findByUser(userId, tab, pageNum, pageSize)
-  }
-
-  @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateWalletTransactionDto: UpdateWalletTransactionDto) {
-    return this.walletTransactionService.update(+id, updateWalletTransactionDto)
-  }
-
-  @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.walletTransactionService.remove(+id)
   }
 }

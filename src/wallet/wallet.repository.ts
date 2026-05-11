@@ -59,4 +59,13 @@ export class WalletRepository {
       data: { balance: { decrement: amount }, availableBalance: { decrement: amount } }
     })
   }
+
+  // 提现钱包变动(可用余额减少，冻结金额增加)
+  applyAmountChange(userId: string, amount: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.wallet.updateMany({
+      where: { userId, availableBalance: { gte: amount } },
+      data: { availableBalance: { decrement: amount }, frozenBalance: { increment: amount } }
+    })
+  }
 }
