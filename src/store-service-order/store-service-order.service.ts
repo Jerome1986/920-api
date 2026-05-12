@@ -21,6 +21,7 @@ import { WalletRepository } from 'src/wallet/wallet.repository'
 import { WalletBizTypeDto, WalletTransactionTypeDto } from 'src/wallet-transaction/dto/create-wallet-transaction.dto'
 import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
+import { StoreServiceOrderStatus } from './dto/query-store-service-order.dto'
 
 @Injectable()
 export class StoreServiceOrderService {
@@ -188,17 +189,21 @@ export class StoreServiceOrderService {
     }
   }
 
-  findAll() {
-    return `This action returns all storeServiceOrder`;
+  // 获取所有线下贴膜订单
+  async findAll(status: StoreServiceOrderStatus, pageNum: number, pageSize: number, keyword: string) {
+    const [list, total] = await this.repo.findAll(status, pageNum, pageSize, keyword)
+    return {
+      list,
+      total,
+      pageNum,
+      pageSize,
+      totalPage: Math.ceil(total / pageSize)
+    }
   }
 
   // 订单详情
   async findOne(outTradeNo: string) {
     return this.repo.findOne(outTradeNo)
-  }
-
-  update(id: number, updateStoreServiceOrderDto: UpdateStoreServiceOrderDto) {
-    return `This action updates a #${id} storeServiceOrder`;
   }
 
   // 更新订单状态

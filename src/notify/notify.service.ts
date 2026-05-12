@@ -252,7 +252,7 @@ export class NotifyService {
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('SERVICE')) {
       await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1.更新订单
-        const order = await this.storeServiceOrderRepo.updateOrder(result.out_trade_no, 'PAID')
+        const order = await this.storeServiceOrderRepo.updateOrder(result.out_trade_no, 'PAID', openid, tx)
         // 1.1 查询订单商品对应的库存
         const inventoryStock = await this.storeInventoryRepo.findOneStock(order.storeId, order.skuId, tx)
         if (!inventoryStock) throw new BadRequestException('当前商品已售空')

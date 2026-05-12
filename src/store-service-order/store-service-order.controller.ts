@@ -5,6 +5,7 @@ import { UpdateStoreServiceOrderDto } from './dto/update-store-service-order.dto
 import { ServiceOrderStatus } from '@prisma/client';
 import { FreeStoreServiceOrderDto } from './dto/free-store-service-order.dto';
 import { FreeStoreServiceOrderCompeletedDto } from './dto/free-store-service-order-completed.dto';
+import { QueryStoreServiceOrderDto } from './dto/query-store-service-order.dto';
 
 @Controller('store-service-order')
 export class StoreServiceOrderController {
@@ -28,20 +29,21 @@ export class StoreServiceOrderController {
     return this.storeServiceOrderService.vipFreeOrderCompleted(FreeOrderCompeletedDto.outTradeNo, FreeOrderCompeletedDto.status)
   }
 
+  // 获取所有线下贴膜订单
   @Get()
-  async findAll() {
-    return this.storeServiceOrderService.findAll()
+  async findAll(@Query() queryStoreServiceOrderDto: QueryStoreServiceOrderDto) {
+    const status = queryStoreServiceOrderDto.status
+    const pageNum = Number(queryStoreServiceOrderDto.pageNum) || 1
+    const pageSize = Number(queryStoreServiceOrderDto.pageSize) || 10
+    const keyword = queryStoreServiceOrderDto.keyword || ''
+
+    return this.storeServiceOrderService.findAll(status, pageNum, pageSize, keyword)
   }
 
   // 订单详情
   @Get('detail/:outTradeNo')
   async findOne(@Param('outTradeNo') outTradeNo: string) {
     return this.storeServiceOrderService.findOne(outTradeNo)
-  }
-
-  @Patch(':id')
-  async update(@Param('id') id: string, @Body() updateStoreServiceOrderDto: UpdateStoreServiceOrderDto) {
-    return this.storeServiceOrderService.update(+id, updateStoreServiceOrderDto)
   }
 
   // 更新订单状态

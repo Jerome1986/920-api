@@ -68,4 +68,22 @@ export class WalletRepository {
       data: { availableBalance: { decrement: amount }, frozenBalance: { increment: amount } }
     })
   }
+
+  // 拒绝提现钱包变动(冻结金额减少，可用余额增加)
+  rejectWithdrawAmountChange(userId: string, amount: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.wallet.updateMany({
+      where: { userId, frozenBalance: { gte: amount } },
+      data: { availableBalance: { increment: amount }, frozenBalance: { decrement: amount } }
+    })
+  }
+
+  // 通过提现钱包变动(总余额减少，冻结金额减少)
+  approveWithdrawAmountChange(userId: string, amount: number, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.wallet.updateMany({
+      where: { userId, frozenBalance: { gte: amount } },
+      data: { balance: { decrement: amount }, frozenBalance: { decrement: amount } }
+    })
+  }
 }
