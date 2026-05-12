@@ -1,16 +1,11 @@
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator'
 
 export class WxPhoneLoginDto {
-  @IsNotEmpty()
-  code: string
-
-  @IsNotEmpty()
-  encryptedData: string
-
-  @IsNotEmpty()
-  iv: string
-
-  @IsOptional() //
   @IsString()
+  code: string
+  @IsString()
+  phoneCode: string
+  @IsString()
+  @IsOptional()
   inviterCode?: string
 }

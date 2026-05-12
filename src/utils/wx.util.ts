@@ -1,17 +1,13 @@
-// utils/wx.util.ts
 import axios from 'axios'
-import * as crypto from 'crypto'
-import { Injectable } from '@nestjs/common'
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common'
 
 @Injectable()
 export class WxUtil {
-  private appId = process.env.APPID
-  private secret = process.env.APPSECRET
+  private readonly appId = process.env.APPID
+  private readonly secret = process.env.APPSECRET
 
   async getSession(code: string) {
-    const url = `https://api.weixin.qq.com/sns/jscode2session`
-
-    const res = await axios.get(url, {
+    const res = await axios.get('https://api.weixin.qq.com/sns/jscode2session', {
       params: {
         appid: this.appId,
         secret: this.secret,
@@ -21,23 +17,61 @@ export class WxUtil {
       proxy: false,
     })
 
+    if (res.data.errcode) {
+      throw new BadRequestException(`微信登录失败：${res.data.errmsg}`)
+    }
+
     return res.data
   }
 
-  decryptPhone(encryptedData, iv, sessionKey) {
-    const decipher = crypto.createDecipheriv(
-      'aes-128-cbc',
-      Buffer.from(sessionKey, 'base64'),
-      Buffer.from(iv, 'base64'),
+  async getAccessToken() {
+    if (!this.appId || !this.secret) {
+      throw new InternalServerErrorException('微信配置缺失')
+    }
+
+    const res = await axios.get('https://api.weixin.qq.com/cgi-bin/token', {
+      params: {
+        grant_type: 'client_credential',
+        appid: this.appId,
+        secret: this.secret,
+      },
+      proxy: false,
+    })
+
+    if (res.data.errcode) {
+      throw new BadRequestException(`获取微信 access_token 失败：${res.data.errmsg}`)
+    }
+
+    return res.data.access_token
+  }
+
+  async getPhoneNumber(phoneCode: string) {
+    if (!phoneCode) {
+      throw new BadRequestException('缺少手机号授权 code')
+    }
+
+    const accessToken = await this.getAccessToken()
+
+    const res = await axios.post(
+      `https://api.weixin.qq.com/wxa/business/getuserphonenumber?access_token=${accessToken}`,
+      {
+        code: phoneCode,
+      },
+      {
+        proxy: false,
+      },
     )
 
-    decipher.setAutoPadding(true)
+    if (res.data.errcode !== 0) {
+      throw new BadRequestException(`获取手机号失败：${res.data.errmsg}`)
+    }
 
-    let decoded = decipher.update(encryptedData, 'base64', 'utf8')
-    decoded += decipher.final('utf8')
+    const phoneNumber = res.data?.phone_info?.phoneNumber
 
-    const result = JSON.parse(decoded)
+    if (!phoneNumber) {
+      throw new BadRequestException('微信未返回手机号')
+    }
 
-    return result.phoneNumber
+    return phoneNumber
   }
 }

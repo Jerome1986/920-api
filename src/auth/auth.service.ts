@@ -19,13 +19,13 @@ export class AuthService {
 
   // auth.service.ts
   async wxPhoneLogin(dto: WxPhoneLoginDto) {
-    const { code, encryptedData, iv, inviterCode } = dto
+    const { code, phoneCode, inviterCode } = dto
 
     // 1️.获取 openid
     const { openid, session_key } = await this.wxUtil.getSession(code)
 
     // 2️.解密手机号
-    const mobile = this.wxUtil.decryptPhone(encryptedData, iv, session_key)
+    const mobile = await this.wxUtil.getPhoneNumber(phoneCode)
 
     // 3️.查当前用户
     let user = await this.repo.findUser(openid, mobile)

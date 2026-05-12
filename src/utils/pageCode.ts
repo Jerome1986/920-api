@@ -69,7 +69,7 @@ export const pageCodeGet = async (options: PageCodeOptions = {}): Promise<Buffer
 
 
   const contentType = res.headers?.['content-type']
-  if (contentType?.includes('application/json')) {
+  if (String(contentType)?.includes('application/json')) {
     const error = parseWechatError(res.data)
     throw new Error(error?.errmsg || '生成小程序二维码失败')
   }
