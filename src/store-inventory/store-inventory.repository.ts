@@ -65,7 +65,7 @@ export class StoreInventoryRepositroy {
     })
   }
 
-  // 根据关键词和分类搜索库存商品
+  // 根据关键词和分类精确搜索库存商品
   searchWithCategory(searchStoreInventoryDto: SearchStoreInventoryDto) {
     const { storeId, categoryId, keyword } = searchStoreInventoryDto
     const searchKeyword = keyword.trim().replace(/\s+/g, '').toLocaleLowerCase()
@@ -80,10 +80,10 @@ export class StoreInventoryRepositroy {
             OR: [
               {
                 models: {
-                  some: { name: { contains: searchKeyword } },
+                  some: { name: { equals: searchKeyword } },
                 },
               },
-              { skuNo: { contains: searchKeyword } },
+              { skuNo: { equals: searchKeyword } },
             ],
           },
         },
