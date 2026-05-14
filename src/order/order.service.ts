@@ -139,6 +139,29 @@ export class OrderService {
       const updateOrderRes = await this.repo.updateOrderCompleted(outTradeNo, userId, tx)
       if (!updateOrderRes) throw new BadRequestException('订单更新错误')
 
+      // TOB店长进货订单按店长等级分流
+      if (updateOrderRes.target === 'TOB') {
+        // 查询下单店长并校验门店绑定
+        const user = await this.userRepo.findOne(orderUserId, tx)
+        if (!user) throw new BadRequestException('当前订单用户不存在')
+        if (!user.storeId) throw new BadRequestException('当前店长未绑定门店，无法同步库存')
+
+        // 初级店长只同步库存，不参与佣金和结算
+        if (user.role === 'MANAGER_PRIMARY') {
+          await this.syncStoreInventory(order, user.storeId, tx)
+          return updateOrderRes
+        }
+
+        if (user.role !== 'MANAGER_SENIOR') {
+          throw new BadRequestException('当前用户不是店长，无法同步库存')
+        }
+
+        // 高级店长先结算佣金，再同步库存
+        await this.settleOrder(updateOrderRes.id, tx)
+        await this.syncStoreInventory(order, user.storeId, tx)
+        return updateOrderRes
+      }
+
       // 3.消费返积分
       // 3.1 获取返积分比例
       const scoreRule = await this.rateRuleRepo.findAll(tx)
@@ -155,104 +178,102 @@ export class OrderService {
         source: '消费奖励',
       }, tx)
 
-      // 4.读取结算 & 佣金
-      const settlement = await this.settlementRecordRepo.findOne(updateOrderRes.id, tx)
-      if (settlement?.status !== 'PENDING') throw new BadRequestException('佣金结算错误')
-      const commissions = await this.commissionRuleRepo.findCommissionRecord(updateOrderRes.id, tx)
-      const totalCommission = commissions.reduce(
-        (sum, item) => sum + Number(item.amount),
-        0
-      )
-
-      // 5.平台钱包入账
-      // 5.1 更新余额
-      const wallet = await this.walletRepo.incrementBalance('1001', Number(settlement.orderAmount), tx)
-      // 5.2 准备钱包流水参数--业务进账
-      const data = {
-        userId: wallet?.userId ?? '1001',
-        type: WalletTransactionTypeDto.IN,
-        bizType: WalletBizTypeDto.SETTLEMENT,
-        amount: Number(settlement.orderAmount),
-        balanceAfter: Number(wallet.balance),
-        relatedId: settlement.id,
-        remark: '订单收入'
-      }
-      await this.wallettransactionRepo.create(data, tx)
-
-      // 6.如果佣金存在
-      if (totalCommission > 0) {
-        // 6.1 扣佣金
-        const decrementWallet = await this.walletRepo.decrementBalance('1001', totalCommission, tx)
-        // 6.2 写流水
-        await this.wallettransactionRepo.create({
-          userId: '1001',
-          type: WalletTransactionTypeDto.OUT,
-          bizType: WalletBizTypeDto.COMMISSION,
-          amount: totalCommission,
-          balanceAfter: Number(decrementWallet.balance),
-          relatedId: settlement.id,
-          remark: '佣金支出'
-        }, tx)
-
-        // 6.3 上级发佣金
-        for (const commission of commissions) {
-          const userWallet = await this.walletRepo.incrementBalance(
-            commission.userId,
-            Number(commission.amount),
-            tx
-          )
-
-          await this.wallettransactionRepo.create({
-            userId: commission.userId,
-            type: WalletTransactionTypeDto.IN,
-            bizType: WalletBizTypeDto.COMMISSION,
-            amount: Number(commission.amount),
-            balanceAfter: Number(userWallet.balance),
-            relatedId: commission.id,
-            remark: '佣金收入'
-          }, tx)
-        }
-
-        // 6.4 更新佣金流水状态
-        await this.commissionRuleRepo.updateCommissionRecordByStatus(
-          updateOrderRes.id,
-          'SETTLED',
-          tx
-        )
-      }
-
-      // 7.更新结算流水状态
-      await this.settlementRecordRepo.updateStatus(
-        updateOrderRes.id,
-        SettlementStatusDto.SETTLED,
-        tx
-      )
-
-      // 8.如果是TOB，则需要将商品同步至门店库存
-      if (updateOrderRes.target === 'TOB') {
-        console.log('订单商品', order.products)
-        if (!user.storeId) throw new BadRequestException('当前店长未绑定门店，无法同步库存')
-
-        for (const product of order.products) {
-          if (!product.skuId) throw new BadRequestException(`订单商品 ${product.name} 缺少 SKU，无法同步库存`)
-          // 8.1 查 SKU 信息
-          const sku = await this.productSkuRepo.findUnique(product.skuId, tx)
-          if (!sku) throw new Error(`SKU ${product.skuId} 不存在`)
-          // 8.2 upsert 门店库存
-          await this.storeInventoryRepo.incrementStock(
-            user.storeId,
-            product.skuId,
-            sku?.product.categoryId,
-            product.quantity,
-            Number(sku?.costPrice),
-            Number(sku?.salePrice),
-            tx
-          )
-        }
-      }
-
+      await this.settleOrder(updateOrderRes.id, tx)
       return updateOrderRes
     })
+  }
+
+  // 完成结算、平台钱包入账和佣金发放
+  private async settleOrder(orderId: string, tx: Prisma.TransactionClient) {
+    // 读取结算和佣金，完成平台钱包入账与佣金发放
+    const settlement = await this.settlementRecordRepo.findOne(orderId, tx)
+    if (!settlement || settlement.status !== 'PENDING') throw new BadRequestException('佣金结算错误')
+    const commissions = await this.commissionRuleRepo.findCommissionRecord(orderId, tx)
+    const totalCommission = commissions.reduce(
+      (sum, item) => sum + Number(item.amount),
+      0
+    )
+
+    // 平台钱包收入入账
+    const wallet = await this.walletRepo.incrementBalance('1001', Number(settlement.orderAmount), tx)
+    await this.wallettransactionRepo.create({
+      userId: wallet?.userId ?? '1001',
+      type: WalletTransactionTypeDto.IN,
+      bizType: WalletBizTypeDto.SETTLEMENT,
+      amount: Number(settlement.orderAmount),
+      balanceAfter: Number(wallet.balance),
+      relatedId: settlement.id,
+      remark: '订单收入'
+    }, tx)
+
+    // 有佣金时扣平台钱包并发放给上级
+    if (totalCommission > 0) {
+      const decrementWallet = await this.walletRepo.decrementBalance('1001', totalCommission, tx)
+      await this.wallettransactionRepo.create({
+        userId: '1001',
+        type: WalletTransactionTypeDto.OUT,
+        bizType: WalletBizTypeDto.COMMISSION,
+        amount: totalCommission,
+        balanceAfter: Number(decrementWallet.balance),
+        relatedId: settlement.id,
+        remark: '佣金支出'
+      }, tx)
+
+      // 逐条发放佣金并记录钱包流水
+      for (const commission of commissions) {
+        const userWallet = await this.walletRepo.incrementBalance(
+          commission.userId,
+          Number(commission.amount),
+          tx
+        )
+
+        await this.wallettransactionRepo.create({
+          userId: commission.userId,
+          type: WalletTransactionTypeDto.IN,
+          bizType: WalletBizTypeDto.COMMISSION,
+          amount: Number(commission.amount),
+          balanceAfter: Number(userWallet.balance),
+          relatedId: commission.id,
+          remark: '佣金收入'
+        }, tx)
+      }
+
+      // 标记佣金流水已结算
+      await this.commissionRuleRepo.updateCommissionRecordByStatus(
+        orderId,
+        'SETTLED',
+        tx
+      )
+    }
+
+    // 标记结算记录已结算
+    await this.settlementRecordRepo.updateStatus(
+      orderId,
+      SettlementStatusDto.SETTLED,
+      tx
+    )
+  }
+
+  // 将TOB订单商品同步到门店库存
+  private async syncStoreInventory(order: any, storeId: string, tx: Prisma.TransactionClient) {
+    console.log('订单商品', order.products)
+
+    for (const product of order.products) {
+      // 校验订单商品SKU并读取商品分类和价格
+      if (!product.skuId) throw new BadRequestException(`订单商品 ${product.name} 缺少 SKU，无法同步库存`)
+      const sku = await this.productSkuRepo.findUnique(product.skuId, tx)
+      if (!sku) throw new Error(`SKU ${product.skuId} 不存在`)
+      // 增加或创建门店库存
+      await this.storeInventoryRepo.incrementStock(
+        storeId,
+        product.skuId,
+        sku?.product.categoryId,
+        product.quantity,
+        Number(sku?.costPrice),
+        Number(sku?.salePrice),
+        tx
+      )
+    }
   }
 
   // 获取订单详情
