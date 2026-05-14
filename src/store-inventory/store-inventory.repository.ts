@@ -65,11 +65,11 @@ export class StoreInventoryRepositroy {
     })
   }
 
-  // 根据关键词和分类精确搜索库存商品
+  // 根据关键词和分类搜索库存商品
   searchWithCategory(searchStoreInventoryDto: SearchStoreInventoryDto) {
     const { storeId, categoryId, keyword } = searchStoreInventoryDto
-    const searchKeyword = keyword.trim().replace(/\s+/g, '').toLocaleLowerCase()
-    console.log('keyword', keyword)
+    const searchKeyword = keyword.trim()
+    const keywordParts = searchKeyword.split(/\s+/).filter(Boolean)
 
     return this.prisma.storeInventory.findMany({
       where: {
@@ -77,14 +77,13 @@ export class StoreInventoryRepositroy {
         categoryId,
         sku: {
           product: {
-            OR: [
-              {
-                models: {
-                  some: { name: { equals: searchKeyword } },
-                },
-              },
-              { skuNo: { equals: searchKeyword } },
-            ],
+            AND: keywordParts.map((part) => ({
+              OR: [
+                { name: { contains: part } },
+                { skuNo: { contains: part } },
+                { models: { some: { name: { contains: part } } } },
+              ],
+            })),
           },
         },
       },
