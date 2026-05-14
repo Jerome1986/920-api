@@ -131,9 +131,14 @@ export class StoreService {
   async findAll(pageNum: number, pageSize: number) {
     // 1.获取门店信息
     const [stores, total] = await this.storeRepo.findAll(pageNum, pageSize)
-    const managerIds = stores.map(l => l.managerId) as string[]
+    const managerIds = stores
+      .map(l => l.managerId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
     // 2.查询店长钱包
-    const wallets = await this.walletRepo.findByUserWallet(managerIds)
+    const wallets = managerIds.length
+      ? await this.walletRepo.findByUserWallet(managerIds)
+      : []
 
     // 3.做一个MAP 性能优化
     const walletMap = new Map()

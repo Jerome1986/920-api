@@ -7,9 +7,12 @@ export class WalletRepository {
   constructor(private prisma: PrismaService) { }
 
   // 批量获取用户钱包
-  findByUserWallet(managerIds: string[]) {
+  findByUserWallet(managerIds: string[] | string | null | undefined) {
+    const ids = (Array.isArray(managerIds) ? managerIds : [managerIds])
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+
     return this.prisma.wallet.findMany(
-      { where: { userId: { in: managerIds } } }
+      { where: { userId: { in: ids } } }
     )
   }
 
