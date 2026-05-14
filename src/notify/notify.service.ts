@@ -169,11 +169,21 @@ export class NotifyService {
 
           step = 'findUser'
           const user = await this.userRepo.findUserScore(openid, tx)
+          // 校验支付用户和门店绑定关系
           if (!user) {
             throw new BadRequestException('店长进货回调失败：未找到支付用户')
           }
           if (!user.storeId) {
             throw new BadRequestException('店长进货回调失败：当前用户未绑定门店')
+          }
+          // 初级店长进货只更新订单支付状态
+          if (user.role === 'MANAGER_PRIMARY') {
+            console.log(`[wxNotify][MANAGER] outTradeNo=${outTradeNo} role=MANAGER_PRIMARY skip settlement steps`)
+            return
+          }
+          // 高级店长进货继续计算流水、佣金和结算
+          if (user.role !== 'MANAGER_SENIOR') {
+            throw new BadRequestException('店长进货回调失败：当前用户不是高级店长')
           }
 
           const platformStoreId = process.env.PLATFORM_STORE_ID
