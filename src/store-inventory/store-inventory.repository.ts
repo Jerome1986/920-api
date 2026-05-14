@@ -68,6 +68,7 @@ export class StoreInventoryRepositroy {
   // 根据关键词和分类搜索库存商品
   searchWithCategory(searchStoreInventoryDto: SearchStoreInventoryDto) {
     const { storeId, categoryId, keyword } = searchStoreInventoryDto
+    const searchKeyword = keyword.trim().replace(/\s+/g, '').toLocaleLowerCase()
     console.log('keyword', keyword)
 
     return this.prisma.storeInventory.findMany({
@@ -76,9 +77,14 @@ export class StoreInventoryRepositroy {
         categoryId,
         sku: {
           product: {
-            models: {
-              some: { name: { contains: keyword.trim().replace(/\s+/g, '').toLocaleLowerCase() } },
-            },
+            OR: [
+              {
+                models: {
+                  some: { name: { contains: searchKeyword } },
+                },
+              },
+              { skuNo: { contains: searchKeyword } },
+            ],
           },
         },
       },
