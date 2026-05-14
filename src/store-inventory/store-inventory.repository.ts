@@ -9,15 +9,13 @@ export class StoreInventoryRepositroy {
   constructor(private prisma: PrismaService) { }
 
   // 根据当前分类获取当前门店库存
-  async findAllByStoreWithCategory(storeId: string, categoryId: number, pageNum: number, pageSize: number) {
+  async findAllByStoreWithCategory(storeId: string, categoryId: number) {
     let where: any = { storeId }
     if (categoryId) where.categoryId = categoryId
 
     return await Promise.all([
       this.prisma.storeInventory.findMany({
         where,
-        skip: (pageNum - 1) * pageSize,
-        take: pageSize,
         include: { sku: { include: { product: { include: { models: true } } } } }
       }),
       this.prisma.storeInventory.count({ where })

@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from "class-validator"
+import { IsEnum, IsOptional, IsString } from "class-validator"
 
 export enum TimeRangePreset {
   today = "today",
@@ -13,11 +13,13 @@ export enum StoreTransactionFilterType {
 }
 
 export class QueryStoreTransactionDto {
+  @IsOptional()
   @IsEnum(StoreTransactionFilterType)
-  filterType: StoreTransactionFilterType
+  filterType?: StoreTransactionFilterType
 
+  @IsOptional()
   @IsEnum(TimeRangePreset)
-  timeRangePreset: TimeRangePreset
+  timeRangePreset?: TimeRangePreset
 
   @IsString()
   pageNum: string

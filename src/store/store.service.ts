@@ -87,8 +87,6 @@ export class StoreService {
 
   // 获取门店会员用户
   async storeByVip(inviterId: string, pageNum: number, pageSize: number) {
-    console.log(inviterId)
-
     if (!inviterId) throw new BadRequestException('用户ID不存在')
     const [vips, total] = await this.userRepo.storeByVip(inviterId, pageNum, pageSize)
     // 获取每个门店会员的消费次数

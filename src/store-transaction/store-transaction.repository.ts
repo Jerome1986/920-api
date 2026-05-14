@@ -18,8 +18,8 @@ export class StoreTransactionRepository {
   // 获取门店业务流水
   async storeTransactionById(
     storeId: string,
-    filterType: StoreTransactionFilterType,
-    timeRangePreset: TimeRangePreset,
+    filterType: StoreTransactionFilterType | undefined,
+    timeRangePreset: TimeRangePreset | undefined,
     pageNum: number,
     pageSize: number
   ) {
@@ -31,14 +31,15 @@ export class StoreTransactionRepository {
       year: new Date(now.getFullYear(), 0, 1),
     }
 
-    let where: any = {
-      storeId,
-      createdAt: {
+    let where: any = { storeId }
+
+    if (timeRangePreset) {
+      where.createdAt = {
         gte: timeRangeMap[timeRangePreset],
-      },
+      }
     }
 
-    if (filterType !== 'ALL') {
+    if (filterType && filterType !== 'ALL') {
       where.type = filterType
     }
     console.log('query', where)

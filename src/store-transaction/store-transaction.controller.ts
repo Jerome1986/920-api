@@ -6,7 +6,7 @@ import { QueryStoreTransactionDto, TimeRangePreset } from "./dto/query-store-tra
 export class StoreTransactionController {
   constructor(private storeTransactionService: StoreTransactionService) { }
 
-  // 获取门店业务流水
+  // 根据时间和类型获取门店业务流水
   @Get(':storeId')
   async storeTransactionById(
     @Param('storeId') storeId: string,
