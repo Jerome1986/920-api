@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from "src/prisma/prisma.service";
 import { CreateStoreDto } from "./dto/create-store.dto";
-import { Prisma } from "@prisma/client";
+import { Prisma, userRole } from "@prisma/client";
 import { UpdateStoreDto } from "./dto/update-store.dto";
 
 @Injectable()
@@ -69,7 +69,8 @@ export class StoreRepository {
       data: {
         status: 'INACTIVE',
         managerId: null,
-        managerName: null
+        managerName: null,
+        managerLevel: null
       }
     })
   }
@@ -118,13 +119,14 @@ export class StoreRepository {
   }
 
   // 设定店长
-  setManager(storeId: string, managerId: string, managerName: string, tx?: Prisma.TransactionClient) {
+  setManager(storeId: string, managerId: string, managerName: string, managerLevel: userRole, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.store.update({
       where: { id: storeId },
       data: {
         managerId,
-        managerName
+        managerName,
+        managerLevel
       }
     })
   }
@@ -136,7 +138,8 @@ export class StoreRepository {
       where: { id },
       data: {
         managerId: null,
-        managerName: null
+        managerName: null,
+        managerLevel: null
       }
     })
   }

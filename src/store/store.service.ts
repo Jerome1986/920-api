@@ -281,6 +281,7 @@ export class StoreService {
         store.id,
         user.id,
         managerName,
+        setManagerStore.managerLevel,
         tx
       )
 

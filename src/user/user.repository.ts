@@ -84,7 +84,7 @@ export class UserRepository {
   // 根据手机号查询用户是否注册
   userFindByPhone(mobile: string, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
-    return this.prisma.user.findUnique({
+    return db.user.findUnique({
       where: { mobile }
     })
   }

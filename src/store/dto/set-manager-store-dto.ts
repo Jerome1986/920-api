@@ -1,19 +1,19 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from "class-validator"
+import { IsEnum, IsNotEmpty, IsString } from "class-validator"
 import { ManagerLevel } from "./create-store.dto"
 
 export class SetManagerStore {
   @IsString()
-  @IsOptional()
+  @IsNotEmpty({ message: '店长姓名不能为空' })
   managerName: string
 
   @IsString()
-  @IsOptional()
+  @IsNotEmpty({ message: '店长手机号不能为空' })
   managerPhone: string
 
   @IsEnum(ManagerLevel, {
     message: 'managerLevel 必须是 MANAGER_PRIMARY 或 MANAGER_SENIOR',
   })
-  @IsOptional()
+  @IsNotEmpty({ message: '店长等级不能为空' })
   managerLevel: ManagerLevel
 }
 
