@@ -48,6 +48,10 @@ export class OrderService {
   // 商品订单创建-支付订单
   async create(orderDto: CreateOrderDto) {
     const { products, addressInfo } = orderDto
+    if (orderDto.target === 'TOB' && orderDto.usedScore > 0) {
+      throw new BadRequestException('店长进货订单不支持使用积分抵扣')
+    }
+
     try {
       const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         // 1.创建订单

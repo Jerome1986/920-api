@@ -155,44 +155,41 @@ export class NotifyService {
     }
     // ============================== 店长进货订单回调 ==============================
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('MANAGER')) {
+      let step = 'transaction'
       try {
         await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           // 1.更新订单状态
+          step = 'statusOrderUpdate'
           const order = await this.OrderRepo.statusOrderUpdate(
             outTradeNo,
             'PAID',
             result.transaction_id,
             tx
           )
-          // 查询用户积分
+
+          step = 'findUser'
           const user = await this.userRepo.findUserScore(openid, tx)
           if (!user) {
-            throw new BadRequestException('当前用户不存在')
+            throw new BadRequestException('店长进货回调失败：未找到支付用户')
           }
-          // 2.如果当前订单使用积分，则扣除积分消耗
-          if (order.usedScore && order.usedScore > 0) {
-            // 2.1 查询用户是否足够
-            if (user?.score && user?.score > order.usedScore) {
-              // 2.2 扣除用户积分--向上取整
-              const changeDecScore = Math.ceil(order.usedScore)
-              console.log('积分抵扣', changeDecScore)
-              const updatedScoreUser = await this.userRepo.updateUserDecScore(openid, changeDecScore, tx)
-              // 2.3 更新积分明细
-              await this.pointsFlowRepo.create({
-                userId: user.id,
-                type: 'EXPENSE',
-                amount: changeDecScore,
-                balance: updatedScoreUser.score,
-                source: '商品购买',
-              }, tx)
-            } else {
-              throw new BadRequestException('积分不足')
-            }
+          if (!user.storeId) {
+            throw new BadRequestException('店长进货回调失败：当前用户未绑定门店')
           }
 
-          // 3.记录门店业务流水
+          const platformStoreId = process.env.PLATFORM_STORE_ID
+          if (!platformStoreId) {
+            throw new BadRequestException('店长进货回调失败：PLATFORM_STORE_ID 未配置')
+          }
+
+          const totalAmount = Number(order.actualPayment)
+          if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+            throw new BadRequestException('店长进货回调失败：订单金额异常')
+          }
+
+          // 2.记录门店业务流水
+          step = 'createStoreTransaction'
           const dataDto = {
-            storeId: user.storeId as string,
+            storeId: user.storeId,
             consumerId: user.id,
             type: ParamsStoreTransactionType.EXPENSE,
             bizType: ParamsStoreBizType.PURCHASE,
@@ -202,21 +199,22 @@ export class NotifyService {
           }
           await this.storeTransactionRepo.create(dataDto, tx)
 
-          // 4.计算佣金
+          // 3.计算佣金
+          step = 'calculateCommission'
           const commissionList = await this.commissionRuleService.calculateCommission(
             order.userId,
-            Number(order.actualPayment),
+            totalAmount,
             tx
           )
 
-          // 5.计算结算表
-          const totalAmount = Number(order.actualPayment)
+          // 4.计算结算表
+          step = 'createSettlement'
           const totalCommission = commissionList.reduce((sum, i) => sum + i.amount, 0)
           const platformFee = totalAmount - totalCommission
 
           await this.settlementRecordRepo.create({
-            storeId: process.env.PLATFORM_STORE_ID as string,
-            managerId: process.env.PLATFORM_STORE_ID as string,
+            storeId: platformStoreId,
+            managerId: platformStoreId,
 
             orderId: order.id,
             orderAmount: totalAmount.toFixed(2),
@@ -233,7 +231,8 @@ export class NotifyService {
 
           console.log('平台佣金比例', (platformFee / totalAmount).toFixed(2))
 
-          // 6.佣金明细
+          // 5.佣金明细
+          step = 'createCommissionRecords'
           await this.commissionRuleService.createCommissionRecords(
             commissionList,
             order.id,
@@ -244,7 +243,9 @@ export class NotifyService {
           )
         })
       } catch (err) {
-        console.error(err)
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`[wxNotify][MANAGER] outTradeNo=${outTradeNo} step=${step}`, err)
+        throw new BadRequestException(`店长进货支付回调处理失败：${message}`)
       }
     }
 
@@ -444,14 +445,13 @@ export class NotifyService {
           const refundOrder = await this.OrderRepo.statusOrderUpdate(outTradeNo, 'REFUNDED', undefined, tx)
           // console.log('更新结果', refundOrder)
           // 2.退还积分
-          let updatedScoreByUser
-          if (refundOrder.usedScore && refundOrder.usedScore > 0) {
+          if (refundOrder.target !== 'TOB' && refundOrder.usedScore && refundOrder.usedScore > 0) {
             step = 'incScore'
-            updatedScoreByUser = await this.userRepo.updateUserIncScore(refundOrder.userId, refundOrder.usedScore, tx)
+            const updatedScoreByUser = await this.userRepo.updateUserIncScore(refundOrder.userId, refundOrder.usedScore, tx)
             // console.log('更新用户', updatedScoreByUser)
 
             step = 'pointsFlow'
-            const points = await this.pointsFlowRepo.create({
+            await this.pointsFlowRepo.create({
               userId: refundOrder.userId,
               type: 'INCOME',
               amount: refundOrder.usedScore,
@@ -464,8 +464,10 @@ export class NotifyService {
           // 3.门店流水冲正
           if (refundOrder.target === 'TOB') {
             step = 'storeTransaction'
+            const user = await this.userRepo.findOne(refundOrder.userId)
+            if (!user?.storeId) throw new BadRequestException('店长进货退款回调失败：当前用户未绑定门店')
             const dataDto = {
-              storeId: updatedScoreByUser.storeId as string,
+              storeId: user.storeId,
               consumerId: refundOrder.userId,
               type: ParamsStoreTransactionType.INCOME,
               bizType: ParamsStoreBizType.PURCHASE,
