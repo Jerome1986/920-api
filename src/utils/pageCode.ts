@@ -1,9 +1,13 @@
 import axios from "axios"
 
 export interface PageCodeOptions {
+  /** 小程序码携带的场景值，扫码后可从页面参数 scene 中解析 */
   scene?: string
+  /** 扫码后进入的小程序页面路径，不需要以 / 开头 */
   page?: string
+  /** 小程序码宽度，单位 px */
   width?: number
+  /** 是否校验 page 路径存在，正式发布页面建议开启 */
   checkPath?: boolean
 }
 
@@ -60,7 +64,7 @@ export const pageCodeGet = async (options: PageCodeOptions = {}): Promise<Buffer
       page: options.page ?? "pagesMember/userFindMo/userFindMo",
       scene: options.scene ?? "source=userFindMo",
       width: options.width ?? 430,
-      check_path: false,  // options.checkPath ?? true
+      check_path: options.checkPath ?? true,  // options.checkPath ?? true
     },
     { responseType: 'arraybuffer' },
   )

@@ -358,6 +358,16 @@ model PhoneModel {
   @@map("phone_model")
 }
 
+// 全局配置表
+model AppConfig {
+  key       String   @id
+  value     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("app_config")
+}
+
 /// 用户表
 model User {
   /// 唯一标识

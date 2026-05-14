@@ -36,6 +36,7 @@ import { WalletTransactionModule } from './wallet-transaction/wallet-transaction
 import { StoreServiceOrderModule } from './store-service-order/store-service-order.module';
 import { WalletWithdrawApplyModule } from './wallet-withdraw-apply/wallet-withdraw-apply.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PageCodeModule } from './page-code/page-code.module';
 
 @Module({
   imports: [
@@ -76,6 +77,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     StoreServiceOrderModule,
     WalletWithdrawApplyModule,
     DashboardModule,
+    PageCodeModule,
   ],
   controllers: [AppController],
   providers: [AppService],
