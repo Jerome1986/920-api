@@ -9,25 +9,41 @@ import { QueryTarget } from 'src/category/dto/create-tcategory.dto'
 export class ProductRepository {
   constructor(private prisma: PrismaService) { }
 
+  private normalizeTarget(target?: QueryTarget | string | null): QueryTarget {
+    if (!target || target === 'undefined' || target === 'undefine') {
+      return QueryTarget.ALL
+    }
+
+    return target as QueryTarget
+  }
+
+  private withTarget(where: any, target?: QueryTarget | string | null) {
+    const normalizedTarget = this.normalizeTarget(target)
+    if (normalizedTarget !== QueryTarget.ALL) {
+      where.target = normalizedTarget
+    }
+    return where
+  }
+
   // 获取热门商品
   async findHot(pageNum: number, pageSize: number, target: QueryTarget) {
+    const where = this.withTarget({ hot: 'ENABLE' }, target)
     return await Promise.all([
       this.prisma.product.findMany({
-        where: { target, hot: 'ENABLE' },
+        where,
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
         include: { images: true, models: true, skus: true },
       }),
-      this.prisma.product.count({ where: { hot: 'ENABLE' } }),
+      this.prisma.product.count({ where }),
     ])
   }
 
   // 根据分类、货号、名称搜索商品--后台管理
   async searchAll(categoryId, searchVal, pageNum, pageSize, target: QueryTarget) {
-    let where: any = {
-      target,
+    let where: any = this.withTarget({
       OR: [{ name: { contains: searchVal } }, { skuNo: { contains: searchVal } }],
-    }
+    }, target)
 
     if (categoryId) {
       where.categoryId = categoryId
@@ -47,14 +63,13 @@ export class ProductRepository {
 
   // 根据货号/名称搜索商品--前端搜索
   searchValue(searchVal: string, pageNum: number, pageSize: number, target: QueryTarget) {
-    let where: any = {
-      target,
+    let where: any = this.withTarget({
       AND: [
         {
           OR: [{ name: { contains: searchVal } }, { skuNo: { contains: searchVal } }],
         },
       ],
-    }
+    }, target)
     return Promise.all([
       this.prisma.product.findMany({
         where,
@@ -82,9 +97,7 @@ export class ProductRepository {
 
   // 根据商品类型来获取所有商品（TOB/TOC）
   async findAllByTarget(categoryId: number, target: QueryTarget, pageNum: number, pageSize: number) {
-    let where: any = {
-      target
-    }
+    let where: any = this.withTarget({}, target)
     if (categoryId) {
       where.categoryId = categoryId
     }
@@ -102,14 +115,15 @@ export class ProductRepository {
 
   // 根据分类ID获取
   async findAll(categoryId: number, pageNum: number, pageSize: number, target: QueryTarget) {
+    const where = this.withTarget({ categoryId }, target)
     return await Promise.all([
       this.prisma.product.findMany({
-        where: { categoryId, target },
+        where,
         include: { skus: true, images: true, models: true },
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.product.count({ where: { categoryId } }),
+      this.prisma.product.count({ where }),
     ])
   }
 
