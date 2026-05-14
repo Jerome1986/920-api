@@ -105,7 +105,7 @@ export class CommissionRuleService {
 
     const list: any[] = []
 
-    if (level1User?.role === 'MANAGER') {
+    if (level1User?.role === 'MANAGER_SENIOR') {
       const amount = Number((actualPayment * Number(level1Rate)).toFixed(2))
       list.push({
         userId: level1User.id,
@@ -115,7 +115,7 @@ export class CommissionRuleService {
       })
     }
 
-    if (level2User?.role === 'MANAGER') {
+    if (level2User?.role === 'MANAGER_SENIOR') {
       const amount = Number((actualPayment * Number(level2Rate)).toFixed(2))
       list.push({
         userId: level2User.id,

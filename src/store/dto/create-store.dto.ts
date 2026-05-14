@@ -1,4 +1,9 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString } from "class-validator"
+import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from "class-validator"
+
+export enum ManagerLevel {
+  MANAGER_PRIMARY = 'MANAGER_PRIMARY',
+  MANAGER_SENIOR = 'MANAGER_SENIOR'
+}
 
 export class CreateStoreDto {
   @IsString()
@@ -20,6 +25,9 @@ export class CreateStoreDto {
   @IsString()
   @IsOptional()
   managerName: string
+
+  @IsEnum(ManagerLevel)
+  managerLevel: ManagerLevel
 
   @IsInt()
   @IsOptional()

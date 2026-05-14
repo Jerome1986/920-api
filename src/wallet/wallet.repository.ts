@@ -16,8 +16,10 @@ export class WalletRepository {
   // 创建用户钱包
   createByUserWallet(userId: string, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
-    return db.wallet.create({
-      data: {
+    return db.wallet.upsert({
+      where: { userId },
+      update: {},
+      create: {
         userId,
         balance: 0,
         availableBalance: 0,

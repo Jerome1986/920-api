@@ -29,6 +29,9 @@ export class VipOrderRepository {
     if (transactionId) {
       data.transactionId = transactionId
     }
+    if (status === 'PAID') {
+      data.paidAt = new Date()
+    }
     return this.prisma.vipOrder.update({
       where: { outTradeNo },
       data,

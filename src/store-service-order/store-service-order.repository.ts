@@ -22,7 +22,9 @@ export class StoreServiceOrderRepository {
 
   // 创建免费会员订单
   vipFreeOrderCreate(outTradeNo: string, userId: string, freeStoreServiceOrderDto: FreeStoreServiceOrderDto) {
-    return this.prisma.storeServiceOrder.create({ data: { outTradeNo, userId, ...freeStoreServiceOrderDto, status: "PAID" } })
+    return this.prisma.storeServiceOrder.create({
+      data: { outTradeNo, userId, ...freeStoreServiceOrderDto, status: "PAID", paidAt: new Date() }
+    })
   }
 
   // 获取所有线下贴膜订单
@@ -62,8 +64,11 @@ export class StoreServiceOrderRepository {
 
     if (status === "CANCELLED") data.cancelledAt = new Date()
 
-    if (status === "PAID" && openid) {
+    if (status === "PAID") {
       data.paidAt = new Date()
+    }
+
+    if (openid) {
       data.openid = openid
     }
 

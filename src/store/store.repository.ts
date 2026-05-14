@@ -11,24 +11,47 @@ export class StoreRepository {
   // 新增门店
   create(createStoreDto: CreateStoreDto, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
-    return db.store.create({ data: createStoreDto })
+    const {
+      managerId,
+      name,
+      address,
+      phone,
+      managerName,
+      managerLevel,
+      inventoryTemplateId
+    } = createStoreDto
+
+    return db.store.create({
+      data: {
+        name,
+        address,
+        phone,
+        managerId,
+        managerName,
+        managerLevel,
+        inventoryTemplateId
+      }
+    })
   }
 
 
   // 获取所有门店
   async findAll(pageNum: number, pageSize: number) {
+    const where = { status: 'ACTIVE' as const }
+
     return await Promise.all([
       this.prisma.store.findMany({
+        where,
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
         include: {
           users: {
-            where: { role: { not: 'MANAGER' } }
+            where: { role: { notIn: ['MANAGER_PRIMARY', 'MANAGER_SENIOR'] } }
           },
           manager: true
         }
       }),
-      this.prisma.store.count()
+      this.prisma.store.count({ where })
     ])
   }
 
@@ -36,6 +59,19 @@ export class StoreRepository {
   remove(id: string, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
     return db.store.delete({ where: { id } })
+  }
+
+  // 禁用门店（业务删除）
+  disableStore(id: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.store.update({
+      where: { id },
+      data: {
+        status: 'INACTIVE',
+        managerId: null,
+        managerName: null
+      }
+    })
   }
 
   // 门店详情
@@ -74,8 +110,9 @@ export class StoreRepository {
   }
 
   // 查询该门店是否有店长
-  findManager(managerId: string) {
-    return this.prisma.store.findUnique({
+  findManager(managerId: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    return db.store.findUnique({
       where: { managerId }
     })
   }

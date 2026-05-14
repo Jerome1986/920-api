@@ -23,7 +23,9 @@ enum adminRole {
 enum userRole {
   USER // 普通用户
   VIP // 会员
-  MANAGER // 店长
+  MANAGER
+  MANAGER_PRIMARY
+  MANAGER_SENIOR
   PLATFORM // 平台
 }
 
@@ -203,6 +205,8 @@ model Admin {
   status    Boolean   @default(true)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("admin")
 }
 
 // banner
@@ -212,6 +216,8 @@ model Banner {
   sort      Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("banner")
 }
 
 // 团队风采
@@ -453,6 +459,8 @@ model Store {
   managerId           String?      @unique @map("manager_id")
   /// 店长姓名
   managerName         String?      @map("manager_name")
+  /// 店长等级
+  managerLevel        userRole?    @map("manager_level")
   /// 上级门店ID（树结构）
   parentStoreId       String?      @map("parent_store_id")
   /// 门店状态
@@ -710,6 +718,8 @@ model VipOrder {
   status       VipOrderStatus
   // 创建时间
   createdAt    DateTime       @default(now())
+  // 支付时间
+  paidAt       DateTime?      @map("paid_at")
   // 更新时间
   updatedAt    DateTime       @updatedAt
 
@@ -869,6 +879,8 @@ model Wallet {
   frozenBalance    Decimal @default(0) @map("frozen_balance") @db.Decimal(10, 2)
 
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wallet")
 }
 
 /// 提现申请表

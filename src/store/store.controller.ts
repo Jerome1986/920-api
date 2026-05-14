@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestj
 import { StoreService } from './store.service';
 import { CreateStoreDto } from './dto/create-store.dto';
 import { UpdateStoreDto } from './dto/update-store.dto';
-import { SetManagerStore } from './dto/set-manager-store-dto';
+import { RemoveManagerStore, SetManagerStore } from './dto/set-manager-store-dto';
 import { StoreDashboardDto } from './dto/store-dashboard.dto';
 
 @Controller('store')
@@ -64,13 +64,15 @@ export class StoreController {
   // 设置店长
   @Patch('setManager/:id')
   async setManager(@Param('id') id: string, @Body() setManagerStore: SetManagerStore) {
+    console.log('canshu', setManagerStore)
+
     return this.storeService.setManager(id, setManagerStore)
   }
 
   // 解除店长
   @Patch('remove/:id')
-  async removeManager(@Param('id') id: string, @Body() setManagerStore: SetManagerStore) {
-    return this.storeService.removeManager(id, setManagerStore)
+  async removeManager(@Param('id') id: string, @Body() removeManagerStore: RemoveManagerStore) {
+    return this.storeService.removeManager(id, removeManagerStore)
   }
 
   // 删除门店

@@ -47,7 +47,7 @@ export class UserRepository {
   // 根据门店ID查询店长的ID
   findUserIdByShop(storeId: string, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma
-    return db.user.findFirst({ where: { storeId, role: 'MANAGER' } })
+    return db.user.findFirst({ where: { storeId, role: { in: ['MANAGER_PRIMARY', 'MANAGER_SENIOR'] } } })
   }
 
   // 获取门店下的会员用户

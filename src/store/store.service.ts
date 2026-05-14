@@ -7,7 +7,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma, userRole } from '@prisma/client';
 import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
-import { SetManagerStore } from './dto/set-manager-store-dto';
+import { RemoveManagerStore, SetManagerStore } from './dto/set-manager-store-dto';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { TimeRangePreset } from 'src/store-transaction/dto/query-store-transaction.dto';
 import { OrderRepository } from 'src/order/order.repository';
@@ -31,13 +31,15 @@ export class StoreService {
         // 1.验证店长是否注册
         const user = await this.userRepo.findOne(createStoreDto.managerId, tx)
         if (!user) throw new BadRequestException('请店长先注册平台')
+        const bindStore = await this.storeRepo.findManager(createStoreDto.managerId, tx)
+        if (bindStore) throw new BadRequestException('该用户已绑定门店')
 
         // 2.创建门店基础信息
         const store = await this.storeRepo.create(createStoreDto, tx)
         if (!store) throw new BadRequestException('门店创建失败')
 
         // 3.更新用户身份为店长
-        const manager = await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
+        const manager = await this.userRepo.updateUserByManager(user.id, store.id, createStoreDto.managerLevel, tx)
         if (!manager) throw new BadRequestException('店长创建失败')
 
         // 4.初始化库存
@@ -262,12 +264,12 @@ export class StoreService {
       if (!user) {
         throw new BadRequestException('用户未注册')
       }
-      if (user.role === 'MANAGER') {
+      if (user.role === 'MANAGER_SENIOR' || user.role === 'MANAGER_PRIMARY') {
         throw new BadRequestException('该用户已是店长，不能重复担任')
       }
 
       // 3. 升级用户为店长
-      await this.userRepo.updateUserByManager(user.id, store.id, 'MANAGER', tx)
+      await this.userRepo.updateUserByManager(user.id, store.id, setManagerStore.managerLevel, tx)
 
       // 4. 绑定店长到门店
       const updatedStore = await this.storeRepo.setManager(
@@ -283,8 +285,8 @@ export class StoreService {
 
 
   // 解除店长
-  async removeManager(id: string, setManagerStore: SetManagerStore) {
-    const { managerId } = setManagerStore
+  async removeManager(id: string, removeManagerStore: RemoveManagerStore) {
+    const { managerId } = removeManagerStore
     return this.prisma.$transaction(async (tx) => {
       // 1.旧店长 → 降级为普通用户
       await this.userRepo.updateUserByManager(managerId, id, 'USER', tx)
@@ -297,22 +299,37 @@ export class StoreService {
   async remove(id: string) {
     try {
       const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        // 1.删除当前门店
-        const store = await this.storeRepo.remove(id, tx)
-        // 2.将店长身份更新至用户
-        if (store.managerId) {
-          await this.userRepo.updateUserByManager(store.managerId, null, 'USER', tx)
-          // 3.删除门店钱包
-          await this.walletRepo.deleteByUserWallet(store.managerId)
+        // 1.查询当前门店
+        const store = await this.storeRepo.findOne(id, tx)
+        if (!store) throw new BadRequestException('门店不存在')
+
+        // 2.门店已禁用时直接返回，保证删除接口幂等
+        if (store.status === 'INACTIVE') {
+          return {
+            storeId: store.id
+          }
         }
 
+        // 3.将店长身份更新为普通用户，并解除店长与门店关系
+        if (store.managerId) {
+          const user = await this.userRepo.updateUserByManager(store.managerId, null, 'USER', tx)
+          if (!user) throw new BadRequestException('身份同步失败')
+        }
+
+        // 4.软删除门店：仅禁用门店，不删除历史订单/流水/结算/会员归属/钱包
+        const disabledStore = await this.storeRepo.disableStore(store.id, tx)
+
         return {
-          storeId: store.id
+          storeId: disabledStore.id
         }
       })
 
       return result
     } catch (err) {
+      console.error(err)
+      if (err instanceof BadRequestException) {
+        throw err
+      }
       throw new BadRequestException('删除门店失败')
     }
   }
