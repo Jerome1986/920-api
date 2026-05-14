@@ -37,6 +37,7 @@ import { StoreServiceOrderModule } from './store-service-order/store-service-ord
 import { WalletWithdrawApplyModule } from './wallet-withdraw-apply/wallet-withdraw-apply.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PageCodeModule } from './page-code/page-code.module';
+import { QuickSellModule } from './quick-sell/quick-sell.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { PageCodeModule } from './page-code/page-code.module';
     WalletWithdrawApplyModule,
     DashboardModule,
     PageCodeModule,
+    QuickSellModule,
   ],
   controllers: [AppController],
   providers: [AppService],
