@@ -102,15 +102,23 @@ export class OrderService {
 
   // 更新指定订单状态
   async statusOrderUpdate(outTradeNo: string, status: OrderStatus) {
+    if (status === 'COMPLETED') {
+      return this.completeOrder(outTradeNo)
+    }
+
     return this.repo.statusOrderUpdate(outTradeNo, status)
   }
 
   // 用户确认收货
   async updateOrderCompleted(outTradeNo: string, userId: string) {
+    return this.completeOrder(outTradeNo, userId)
+  }
+
+  private async completeOrder(outTradeNo: string, userId?: string) {
     // 1.验证订单
     const order = await this.repo.findOne(outTradeNo)
     if (!order) throw new BadRequestException('订单不存在')
-    if (order.userId !== userId) throw new BadRequestException('用户订单不匹配')
+    if (userId && order.userId !== userId) throw new BadRequestException('用户订单不匹配')
 
     if (order.status === 'COMPLETED') {
       throw new BadRequestException('订单已完成，请勿重复操作')
@@ -122,8 +130,9 @@ export class OrderService {
 
     //开启事务
     return await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const orderUserId = order.userId
       // 2.更新并返回
-      const updateOrderRes = await this.repo.updateOrderCompleted(outTradeNo, userId)
+      const updateOrderRes = await this.repo.updateOrderCompleted(outTradeNo, userId, tx)
       if (!updateOrderRes) throw new BadRequestException('订单更新错误')
 
       // 3.消费返积分
@@ -132,10 +141,10 @@ export class OrderService {
       const rate = scoreRule[0].earnRate as number
       const changeIncScore = Math.floor(Number(order.actualPayment) * rate)
       // 3.2 更新用户积分
-      const user = await this.userRepo.updateUserIncScore(userId, changeIncScore, tx)
+      const user = await this.userRepo.updateUserIncScore(orderUserId, changeIncScore, tx)
       // 3.3 更新积分明细
       await this.pointsFlowRepo.create({
-        userId,
+        userId: orderUserId,
         type: 'INCOME',
         amount: changeIncScore,
         balance: user.score,
@@ -218,15 +227,17 @@ export class OrderService {
       // 8.如果是TOB，则需要将商品同步至门店库存
       if (updateOrderRes.target === 'TOB') {
         console.log('订单商品', order.products)
+        if (!user.storeId) throw new BadRequestException('当前店长未绑定门店，无法同步库存')
 
         for (const product of order.products) {
+          if (!product.skuId) throw new BadRequestException(`订单商品 ${product.name} 缺少 SKU，无法同步库存`)
           // 8.1 查 SKU 信息
-          const sku = await this.productSkuRepo.findUnique(product.skuId!, tx)
+          const sku = await this.productSkuRepo.findUnique(product.skuId, tx)
           if (!sku) throw new Error(`SKU ${product.skuId} 不存在`)
           // 8.2 upsert 门店库存
           await this.storeInventoryRepo.incrementStock(
-            user.storeId!,
-            product.skuId!,
+            user.storeId,
+            product.skuId,
             sku?.product.categoryId,
             product.quantity,
             Number(sku?.costPrice),

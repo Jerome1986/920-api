@@ -115,12 +115,14 @@ export class OrderRepository {
   }
 
   // 用户确定收货
-  async updateOrderCompleted(outTradeNo: string, userId: string) {
-    return this.prisma.order.update({
-      where: {
-        outTradeNo,
-        userId
-      },
+  async updateOrderCompleted(outTradeNo: string, userId?: string, tx?: Prisma.TransactionClient) {
+    const db = tx ?? this.prisma
+    const where: Prisma.OrderWhereUniqueInput = userId
+      ? { outTradeNo, userId }
+      : { outTradeNo }
+
+    return db.order.update({
+      where,
       data: { status: 'COMPLETED', completedAt: new Date() }
     })
   }
