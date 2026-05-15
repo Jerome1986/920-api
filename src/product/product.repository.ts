@@ -122,6 +122,7 @@ export class ProductRepository {
         include: { skus: true, images: true, models: true },
         skip: (pageNum - 1) * pageSize,
         take: pageSize,
+        orderBy: { skuNo: 'asc' }
       }),
       this.prisma.product.count({ where }),
     ])
