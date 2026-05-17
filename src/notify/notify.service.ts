@@ -76,10 +76,10 @@ export class NotifyService {
 
           // 2.如果当前订单使用积分，则扣除积分消耗
           if (updateOrder.usedScore && updateOrder.usedScore > 0) {
+            const changeDecScore = updateOrder.usedScore
             // 2.1 查询用户是否足够
-            if (user?.score && user?.score > updateOrder.usedScore) {
-              // 2.2 扣除用户积分--向上取整
-              const changeDecScore = Math.ceil(updateOrder.usedScore)
+            if (user.score >= changeDecScore) {
+              // 2.2 扣除用户积分
               console.log('积分抵扣', changeDecScore)
               const updatedScoreUser = await this.userRepo.updateUserDecScore(openid, changeDecScore, tx)
               // 2.3 更新积分明细
