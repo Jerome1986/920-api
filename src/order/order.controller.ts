@@ -4,7 +4,7 @@ import { CreateOrderDto } from './dto/create-order.dto'
 import { QueryOrderDto } from './dto/query-order.dto'
 import { OrderStatus } from '@prisma/client'
 import { CancelOrderDto } from './dto/cancel-order.dto'
-import { UpdateOrderCompletedDto } from './dto/update-order-completed.dto'
+import { SearchOrderDto } from './dto/search-order.dto'
 
 @Controller('order')
 export class OrderController {
@@ -59,5 +59,17 @@ export class OrderController {
     @Body() CancelTocOrderDto: CancelOrderDto,
   ) {
     return this.OrderService.cancelOrder(outTradeNo, CancelTocOrderDto)
+  }
+
+  // 根据商品货号搜索用户匹配的订单
+  @Post('search')
+  async purchaseOrderSearchBySkuNoApi(@Body() searchOrderDto: SearchOrderDto) {
+    const pageNum = Number(searchOrderDto.pageNum) || 1
+    const pageSize = Number(searchOrderDto.pageSize) || 10
+    const target = searchOrderDto.target
+    const userId = searchOrderDto.userId
+    const skuNo = searchOrderDto.skuNo
+    const status = searchOrderDto.status
+    return this.OrderService.purchaseOrderSearchBySkuNoApi(target, userId, skuNo, status, pageNum, pageSize)
   }
 }

@@ -328,4 +328,23 @@ export class OrderService {
 
     return resp.data
   }
+
+  // 根据商品货号搜索用户匹配的订单
+  async purchaseOrderSearchBySkuNoApi(target: QueryTarget, userId: string, skuNo: string, status: OrderQueryStatus, pageNum: number, pageSize: number) {
+    const [list, total] = await this.repo.purchaseOrderSearchBySkuNoApi(
+      target,
+      userId,
+      skuNo,
+      status,
+      pageNum,
+      pageSize
+    )
+    return {
+      list,
+      total,
+      pageNum,
+      pageSize,
+      totalPage: Math.ceil(total / pageSize)
+    }
+  }
 }

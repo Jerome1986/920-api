@@ -181,4 +181,34 @@ export class OrderRepository {
       where: { userId, status: 'COMPLETED' }
     })
   }
+
+  // 根据商品货号搜索用户匹配的订单
+  async purchaseOrderSearchBySkuNoApi(target: QueryTarget, userId: string, skuNo: string, status: OrderQueryStatus, pageNum: number, pageSize: number) {
+    let where: any = {
+      userId,
+      products: {
+        some: {
+          skuNo: { contains: skuNo }
+        }
+      }
+    }
+
+    if (target !== 'ALL') where.target = target
+    if (status !== 'ALL') where.status = status
+
+    if (status === 'PROCESSING' || status === 'REFUNDED') {
+      where.status = { in: ['PROCESSING', 'REFUNDED'] }
+    }
+
+    return await Promise.all([
+      this.prisma.order.findMany({
+        where,
+        skip: (pageNum - 1) * pageSize,
+        take: pageSize,
+        include: { address: true, products: true },
+        orderBy: { updatedAt: 'desc' }
+      }),
+      this.prisma.order.count({ where })
+    ])
+  }
 }
