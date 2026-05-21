@@ -139,26 +139,23 @@ export class OrderService {
       const updateOrderRes = await this.repo.updateOrderCompleted(outTradeNo, userId, tx)
       if (!updateOrderRes) throw new BadRequestException('订单更新错误')
 
-      // TOB店长进货订单按店长等级分流
+      // TOB店长进货订单统一同步库存，有待结算记录时发放上级佣金
       if (updateOrderRes.target === 'TOB') {
         // 查询下单店长并校验门店绑定
         const user = await this.userRepo.findOne(orderUserId, tx)
         if (!user) throw new BadRequestException('当前订单用户不存在')
         if (!user.storeId) throw new BadRequestException('当前店长未绑定门店，无法同步库存')
 
-        // 初级店长只同步库存，不参与佣金和结算
-        if (user.role === 'MANAGER_PRIMARY') {
-          await this.syncStoreInventory(order, user.storeId, tx)
-          return updateOrderRes
-        }
-
-        if (user.role !== 'MANAGER_SENIOR') {
+        if (user.role !== 'MANAGER_PRIMARY' && user.role !== 'MANAGER_SENIOR') {
           throw new BadRequestException('当前用户不是店长，无法同步库存')
         }
 
-        // 高级店长先结算佣金，再同步库存
-        await this.settleOrder(updateOrderRes.id, tx)
         await this.syncStoreInventory(order, user.storeId, tx)
+        // 有待结算记录时，发放上级高级店长佣金
+        const settlement = await this.settlementRecordRepo.findOne(updateOrderRes.id, tx)
+        if (settlement?.status === 'PENDING') {
+          await this.settleOrder(updateOrderRes.id, tx)
+        }
         return updateOrderRes
       }
 

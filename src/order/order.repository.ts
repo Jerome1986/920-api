@@ -148,6 +148,7 @@ export class OrderRepository {
     let where: any = {
       userId,
       status,
+      target: 'TOB',
       createdAt: {
         gte: timeRangeMap[timeRangePreset],
       },

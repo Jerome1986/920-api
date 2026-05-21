@@ -176,14 +176,8 @@ export class NotifyService {
           if (!user.storeId) {
             throw new BadRequestException('店长进货回调失败：当前用户未绑定门店')
           }
-          // 初级店长进货只更新订单支付状态
-          if (user.role === 'MANAGER_PRIMARY') {
-            console.log(`[wxNotify][MANAGER] outTradeNo=${outTradeNo} role=MANAGER_PRIMARY skip settlement steps`)
-            return
-          }
-          // 高级店长进货继续计算流水、佣金和结算
-          if (user.role !== 'MANAGER_SENIOR') {
-            throw new BadRequestException('店长进货回调失败：当前用户不是高级店长')
+          if (user.role !== 'MANAGER_PRIMARY' && user.role !== 'MANAGER_SENIOR') {
+            throw new BadRequestException('店长进货回调失败：当前用户不是店长')
           }
 
           const platformStoreId = process.env.PLATFORM_STORE_ID
@@ -216,6 +210,10 @@ export class NotifyService {
             totalAmount,
             tx
           )
+          if (!commissionList.length) {
+            console.log(`[wxNotify][MANAGER] outTradeNo=${outTradeNo} no senior manager commission`)
+            return
+          }
 
           // 4.计算结算表
           step = 'createSettlement'
