@@ -22,6 +22,7 @@ import { WalletBizTypeDto, WalletTransactionTypeDto } from 'src/wallet-transacti
 import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository'
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
 import { StoreServiceOrderStatus } from './dto/query-store-service-order.dto'
+import { yuanToFen } from 'src/utils/money'
 
 @Injectable()
 export class StoreServiceOrderService {
@@ -51,7 +52,7 @@ export class StoreServiceOrderService {
       out_trade_no: order.outTradeNo,
       notify_url: process.env.NOTIFY_URL,
       amount: {
-        total: 1, // Number(order.actualPayment) * 100
+        total: yuanToFen(order.actualPayment), // 单位分
         currency: 'CNY'
       }
     }

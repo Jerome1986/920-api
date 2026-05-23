@@ -21,6 +21,7 @@ export class VipOrderService {
       vipOrder.remark as string,
       vipOrder.outTradeNo,
       vipOrder.openid,
+      vipOrder.amount.toString(),
     )
 
     return payRes

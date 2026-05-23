@@ -2,13 +2,14 @@ import { BadRequestException, Injectable } from '@nestjs/common'
 import { createWechatPay, getPrivateKey } from 'src/utils/wechat-pay'
 import { WechatSign } from 'src/utils/wechat-sign'
 import * as crypto from 'crypto'
+import { yuanToFen } from 'src/utils/money'
 
 @Injectable()
 export class PaymentRepository {
   constructor() {}
 
   // 微信支付
-  async wxPay(remark: string, outTradeNo: string, openid: string) {
+  async wxPay(remark: string, outTradeNo: string, openid: string, amount: number | string) {
     // 构建参数
     const body = {
       appid: process.env.APPID,
@@ -17,7 +18,7 @@ export class PaymentRepository {
       out_trade_no: outTradeNo,
       notify_url: process.env.NOTIFY_URL,
       amount: {
-        total: 1, // 单位分
+        total: yuanToFen(amount), // 单位分
         currency: 'CNY',
       },
       payer: {

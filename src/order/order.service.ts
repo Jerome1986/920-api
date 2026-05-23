@@ -25,6 +25,7 @@ import { WalletBizTypeDto, WalletTransactionTypeDto } from 'src/wallet-transacti
 import { SettlementStatusDto } from 'src/settlement-record/dto/create-settlement-record.dto'
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository'
 import { ProductSkuRepository } from 'src/product-sku/product-sku.repository'
+import { yuanToFen } from 'src/utils/money'
 
 @Injectable()
 export class OrderService {
@@ -73,6 +74,7 @@ export class OrderService {
         result.remark as string,
         result.outTradeNo,
         result.openid,
+        result.actualPayment.toString(),
       )
       return payRes
     } catch (error) {
@@ -281,13 +283,17 @@ export class OrderService {
   // 取消订单
   async cancelOrder(outTradeNo: string, CancelTocOrderDto: CancelOrderDto) {
     console.log('退款金额', CancelTocOrderDto)
+    const order = await this.repo.findOne(outTradeNo)
+    if (!order) throw new BadRequestException('订单不存在')
+
+    const refundAmount = yuanToFen(order.actualPayment)
     // 1.退款参数
     const body = {
       out_trade_no: outTradeNo,
       out_refund_no: generateOrderNo('REFUND'),
       amount: {
-        total: 1, // 本次订单实际支付金额 CancelTocOrderDto.actualPayment
-        refund: 1, // 本次订单应退款金额 CancelTocOrderDto.actualPayment
+        total: refundAmount, // 本次订单实际支付金额，单位分
+        refund: refundAmount, // 本次订单应退款金额，单位分
         currency: 'CNY',
       },
       notify_url: process.env.REFUND_NOTIFY_URL,
