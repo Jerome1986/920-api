@@ -40,7 +40,7 @@ export class SettlementRecordRepository {
   }
 
   // 获取所有的结算列表
-  findAll(
+  async findAll(
     status: QuerySettlementStatus,
     pageNum: number,
     pageSize: number,
@@ -61,7 +61,7 @@ export class SettlementRecordRepository {
       if (createdEndAt) where.createdAt.lte = new Date(createdEndAt)
     }
 
-    return Promise.all([
+    const [list, total] = await Promise.all([
       this.prisma.settlementRecord.findMany({
         where,
         skip: (pageNum - 1) * pageSize,
@@ -70,5 +70,27 @@ export class SettlementRecordRepository {
       }),
       this.prisma.settlementRecord.count({ where })
     ])
+
+    // 提取当前页店长ID，避免逐条查询用户表
+    const managerIds = [...new Set(list.map(item => item.managerId))]
+    // 批量查询店长手机号，用于前端列表展示
+    const managers = managerIds.length
+      ? await this.prisma.user.findMany({
+        where: { id: { in: managerIds } },
+        select: { id: true, mobile: true }
+      })
+      : []
+    const managerPhoneMap = new Map(managers.map(manager => [manager.id, manager.mobile]))
+
+    // 合并店长手机号；未找到用户时返回null
+    const listWithManagerPhone = list.map(item => ({
+      ...item,
+      managerPhone: managerPhoneMap.get(item.managerId) ?? null
+    }))
+
+    return [
+      listWithManagerPhone,
+      total
+    ] as const
   }
 }
