@@ -6,7 +6,7 @@ import { yuanToFen } from 'src/utils/money'
 
 @Injectable()
 export class PaymentRepository {
-  constructor() {}
+  constructor() { }
 
   // 微信支付
   async wxPay(remark: string, outTradeNo: string, openid: string, amount: number | string) {

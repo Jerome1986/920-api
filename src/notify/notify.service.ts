@@ -60,14 +60,14 @@ export class NotifyService {
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('PRO')) {
       // 开启事务
       try {
+        // 1.更新订单状态。支付成功是事实，先落库，避免后续业务异常导致订单状态回滚为待支付。
+        const updateOrder = await this.OrderRepo.statusOrderUpdate(
+          outTradeNo,
+          'PAID',
+          result.transaction_id,
+        )
+
         await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          // 1.更新订单状态
-          const updateOrder = await this.OrderRepo.statusOrderUpdate(
-            outTradeNo,
-            'PAID',
-            result.transaction_id,
-            tx
-          )
           // 查询用户积分
           const user = await this.userRepo.findUserScore(openid, tx)
           if (!user) {
@@ -157,16 +157,15 @@ export class NotifyService {
     if (result.trade_state === 'SUCCESS' && result.out_trade_no.startsWith('MANAGER')) {
       let step = 'transaction'
       try {
-        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-          // 1.更新订单状态
-          step = 'statusOrderUpdate'
-          const order = await this.OrderRepo.statusOrderUpdate(
-            outTradeNo,
-            'PAID',
-            result.transaction_id,
-            tx
-          )
+        // 1.更新订单状态。支付成功是事实，先落库，避免后续业务异常导致订单状态回滚为待支付。
+        step = 'statusOrderUpdate'
+        const order = await this.OrderRepo.statusOrderUpdate(
+          outTradeNo,
+          'PAID',
+          result.transaction_id,
+        )
 
+        await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           step = 'findUser'
           const user = await this.userRepo.findUserScore(openid, tx)
           // 校验支付用户和门店绑定关系
