@@ -165,6 +165,29 @@ export class UserRepository {
     })
   }
 
+  // 条件占用一次有效的 VIP 免费贴膜权益
+  useVipGift(userId: string, now: Date, tx: Prisma.TransactionClient) {
+    // 1. 仅在会员未过期且剩余次数大于0时扣减，防止并发扣成负数
+    return tx.user.updateMany({
+      where: {
+        id: userId,
+        role: userRole.VIP,
+        vipGift: { gt: 0 },
+        vipEndTime: { gt: now },
+      },
+      data: { vipGift: { decrement: 1 }, lastGiftTime: now },
+    })
+  }
+
+  // 免费订单取消时原路返还一次 VIP 免费贴膜权益
+  restoreVipGift(userId: string, tx: Prisma.TransactionClient) {
+    // 1. 订单状态幂等校验通过后再执行一次递增
+    return tx.user.update({
+      where: { id: userId },
+      data: { vipGift: { increment: 1 } },
+    })
+  }
+
   // =================== 积分操作 ===================
 
   // 查询用户积分

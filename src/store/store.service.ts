@@ -11,6 +11,7 @@ import { RemoveManagerStore, SetManagerStore } from './dto/set-manager-store-dto
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { TimeRangePreset } from 'src/store-transaction/dto/query-store-transaction.dto';
 import { OrderRepository } from 'src/order/order.repository';
+import { AgentInviteRepository } from 'src/agent-invite/agent-invite.repository';
 
 @Injectable()
 export class StoreService {
@@ -21,7 +22,8 @@ export class StoreService {
     private storeStockModelRepo: StockModelRepository,
     private storeInventoryRepo: StoreInventoryRepositroy,
     private walletRepo: WalletRepository,
-    private orderRepo: OrderRepository
+    private orderRepo: OrderRepository,
+    private agentInviteRepo: AgentInviteRepository
   ) { }
 
   // 新增门店
@@ -111,17 +113,40 @@ export class StoreService {
 
   // 验证会员
   async checkMember(mobile: string) {
+    // 1. 根据手机号查询注册用户
     const user = await this.userRepo.userFindByPhone(mobile)
     if (!user) throw new BadRequestException('用户未注册')
+
+    // 2. 按服务端当前时间计算 VIP 与代理邀请权益是否可用
     const now = new Date()
     const vipEnd = user.vipEndTime ? new Date(user.vipEndTime) : null
-    const isVip = user.role === 'VIP' && vipEnd && vipEnd > now
+    const isVip = Boolean(user.role === 'VIP' && vipEnd && vipEnd > now)
+    const vipGift = Math.max(Number(user.vipGift) || 0, 0)
+    const vipAvailable = isVip ? vipGift : 0
+    const agentClaim = await this.agentInviteRepo.findAvailableClaimByUserId(user.id, now)
+    const agentInviteAvailable = agentClaim ? 1 : 0
+    const totalAvailable = vipAvailable + agentInviteAvailable
+
+    // 3. 仅在当前可用权益中计算最近到期时间
+    const availableExpiresAt = [
+      vipAvailable > 0 ? vipEnd : null,
+      agentClaim?.expiresAt ?? null,
+    ].filter((date): date is Date => date instanceof Date)
+    const nextExpiringAt = availableExpiresAt.length
+      ? new Date(Math.min(...availableExpiresAt.map(date => date.getTime())))
+      : null
+
+    // 4. 保留旧字段，同时返回门店免费权益汇总字段
     return {
       userId: user.id,
       mobile: user.mobile,
       isVip,
       vipGift: user.vipGift,
-      vipEndTime: user.vipEndTime
+      vipEndTime: user.vipEndTime,
+      vipAvailable,
+      agentInviteAvailable,
+      totalAvailable,
+      nextExpiringAt,
     }
   }
 

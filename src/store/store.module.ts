@@ -7,8 +7,10 @@ import { StockModelRepository } from 'src/stock-model/stock-model.repositroy';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { OrderRepository } from 'src/order/order.repository';
+import { AgentInviteModule } from 'src/agent-invite/agent-invite.module';
 
 @Module({
+  imports: [AgentInviteModule],
   controllers: [StoreController],
   providers: [
     StoreService,

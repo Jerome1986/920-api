@@ -10,8 +10,10 @@ import { SettlementRecordRepository } from 'src/settlement-record/settlement-rec
 import { WalletRepository } from 'src/wallet/wallet.repository';
 import { WallettransactionRepository } from 'src/wallet-transaction/wallet-transaction.repository';
 import { StoreInventoryRepositroy } from 'src/store-inventory/store-inventory.repository';
+import { AgentInviteModule } from 'src/agent-invite/agent-invite.module';
 
 @Module({
+  imports: [AgentInviteModule],
   controllers: [StoreServiceOrderController],
   providers: [
     StoreInventoryRepositroy,
