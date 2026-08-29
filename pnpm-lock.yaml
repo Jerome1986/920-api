@@ -47,6 +47,9 @@ dependencies:
   class-validator:
     specifier: ^0.15.1
     version: 0.15.1
+  dotenv:
+    specifier: ^17.4.2
+    version: 17.4.2
   minio:
     specifier: ^8.0.7
     version: 8.0.7

@@ -38,6 +38,8 @@ import { WalletWithdrawApplyModule } from './wallet-withdraw-apply/wallet-withdr
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PageCodeModule } from './page-code/page-code.module';
 import { QuickSellModule } from './quick-sell/quick-sell.module';
+import { AgentProfileModule } from './agent-profile/agent-profile.module';
+import { AgentInviteModule } from './agent-invite/agent-invite.module';
 
 @Module({
   imports: [
@@ -80,6 +82,8 @@ import { QuickSellModule } from './quick-sell/quick-sell.module';
     DashboardModule,
     PageCodeModule,
     QuickSellModule,
+    AgentProfileModule,
+    AgentInviteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

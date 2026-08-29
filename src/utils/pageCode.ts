@@ -69,9 +69,6 @@ export const pageCodeGet = async (options: PageCodeOptions = {}): Promise<Buffer
     { responseType: 'arraybuffer' },
   )
 
-  console.log('code', res)
-
-
   const contentType = res.headers?.['content-type']
   if (String(contentType)?.includes('application/json')) {
     const error = parseWechatError(res.data)

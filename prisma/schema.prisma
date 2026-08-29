@@ -29,6 +29,25 @@ enum userRole {
   PLATFORM // 平台
 }
 
+/// 代理人账号状态
+enum AgentStatus {
+  ACTIVE // 已启用
+  DISABLED // 已停用
+}
+
+/// 邀请人免费次数使用状态
+enum AgentInviteBenefitStatus {
+  AVAILABLE // 可使用
+  USED // 已核销
+  EXPIRED // 已过期
+}
+
+/// 免费贴膜权益来源
+enum FreeBenefitSource {
+  VIP // VIP 免费次数
+  AGENT_INVITE // 代理邀请赠送次数
+}
+
 // 通用激活/禁用状态
 enum commonStatus {
   ACTIVE
@@ -198,12 +217,19 @@ enum ApplyType {
 
 // 管理员表
 model Admin {
+  /// 管理员ID
   id        Int       @id @default(autoincrement())
+  /// 登录用户名
   username  String    @unique
+  /// 登录密码
   password  String
+  /// 管理员角色
   role      adminRole @default(STAFF)
+  /// 账号是否启用
   status    Boolean   @default(true)
+  /// 创建时间
   createdAt DateTime  @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   @@map("admin")
@@ -211,10 +237,15 @@ model Admin {
 
 // banner
 model Banner {
+  /// Banner ID
   id        Int      @id @default(autoincrement())
+  /// 图片或跳转地址
   url       String
+  /// 排序值
   sort      Int      @default(0)
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("banner")
@@ -222,14 +253,18 @@ model Banner {
 
 // 团队风采
 model Team {
+  /// 团队风采ID
   id     Int          @id @default(autoincrement())
   // 名称：如：孵化伙伴风采
   name   String
   // 图片地址
   image  String
+  /// 启用状态
   status commonStatus @default(ACTIVE)
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 表名：team_show_case
@@ -238,21 +273,29 @@ model Team {
 
 // 商品分类
 model Category {
+  /// 分类ID
   id       Int    @id @default(autoincrement()) @db.UnsignedInt
   /// 分类名称
   name     String
   /// 父级ID（可选）
   parentId Int?   @map("parent_id") @db.UnsignedInt
+  /// 分类层级
   level    Int?   @default(1)
+  /// 排序值
   sort     Int?   @default(0)
+  /// 分类适用对象
   target   Target @default(TOC)
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 关联
   products           Product[]
+  /// 库存模板商品关联记录
   stockModelProducts StockModelProduct[]
+  /// 门店库存记录
   storeInventories   StoreInventory[]
 
   @@index([target])
@@ -262,6 +305,7 @@ model Category {
 
 // 商品表
 model Product {
+  /// 商品ID
   id      Int     @id @default(autoincrement()) @db.UnsignedInt
   name    String  @db.Char(255) // 商品名称
   skuNo   String  @unique // 商品货号（唯一）
@@ -271,6 +315,7 @@ model Product {
   status  String  @default("ACTIVE") // active/inactive
   hot     String  @default("DISABLE") // 热门 'ENABLE' | 'DISABLE'
   type    String  @default("BOTH") // user/manager/vip/both
+  /// 商品适用对象
   target  Target  @default(TOC)
 
   /// 关联
@@ -281,14 +326,19 @@ model Product {
   /// 支持型号
   models ProductModel[]
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   /// 挂叶子节点
   categoryId   Int     @db.UnsignedInt
+  /// 分类名称快照
   categoryName String?
 
+  /// 所属商品分类
   category        Category            @relation(fields: [categoryId], references: [id])
+  /// 库存模板商品关联记录
   stockModelItems StockModelProduct[]
 
   @@index([target])
@@ -320,6 +370,7 @@ model ProductSku {
   /// 关联商品表
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  /// 库存模板商品关联记录
   stockModelProducts StockModelProduct[]
   /// 门店库存
   inventory          StoreInventory[]
@@ -329,9 +380,12 @@ model ProductSku {
 
 // 商品图片表（proImages 拆表）
 model ProductImage {
+  /// 商品图片ID
   id        Int     @id @default(autoincrement()) @db.UnsignedInt
+  /// 商品ID
   productId Int     @db.UnsignedInt
   url       String // 图片地址
+  /// 所属商品
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_image")
@@ -339,9 +393,12 @@ model ProductImage {
 
 // 商品型号表（models 拆表）
 model ProductModel {
+  /// 商品型号ID
   id        Int     @id @default(autoincrement()) @db.UnsignedInt
+  /// 商品ID
   productId Int     @db.UnsignedInt
   name      String // iPhone16Pro
+  /// 所属商品
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_model")
@@ -349,9 +406,13 @@ model ProductModel {
 
 // 通用型号主表
 model PhoneModel {
+  /// 手机型号ID
   id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  /// 手机型号名称
   name      String   @unique
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([name])
@@ -360,9 +421,13 @@ model PhoneModel {
 
 // 全局配置表
 model AppConfig {
+  /// 配置键
   key       String   @id
+  /// 配置值
   value     String   @db.Text
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("app_config")
@@ -421,9 +486,15 @@ model User {
 
   /// ============= 关系 =============
 
+  /// 邀请该用户的上级用户
   inviter  User?  @relation("UserInviter", fields: [inviterId], references: [id])
+  /// 该用户邀请的下级用户
   invitees User[] @relation("UserInviter")
 
+  /// 代理资格表
+  agentProfile          AgentProfile?
+  /// 邀请领取及代理权益
+  agentInviteClaim      AgentInviteClaim?     @relation("AgentInvitee")
   /// 用户积分流水表
   pointsFlows           PointsFlow[]
   /// VIP订单表
@@ -437,6 +508,7 @@ model User {
   store              Store?              @relation("StoreVip", fields: [storeId], references: [id])
   /// 店长--一个店长管理一个门店
   managedStore       Store?              @relation("StoreManager")
+  /// 用户的线下贴膜订单
   storeServiceOrders StoreServiceOrder[]
 
   @@index([mobile])
@@ -496,6 +568,7 @@ model Store {
   inventoryModel     StockModel?         @relation("StockModelToStore", fields: [inventoryTemplateId], references: [id])
   /// 门店库存
   inventory          StoreInventory[]
+  /// 门店的线下贴膜订单
   storeServiceOrders StoreServiceOrder[]
 
   @@index([managerId])
@@ -505,9 +578,13 @@ model Store {
 
 /// 门店库存表
 model StoreInventory {
+  /// 门店库存记录ID
   id          String       @id @default(cuid())
+  /// 门店ID
   storeId     String       @map("store_id")
+  /// 商品分类ID
   categoryId  Int          @map("category_id") @db.UnsignedInt
+  /// 商品SKU ID
   skuId       Int          @map("sku_id") @db.UnsignedInt
   /// 库存数量
   stock       Int          @default(0)
@@ -519,14 +596,20 @@ model StoreInventory {
   costPrice   Decimal      @default(0) @map("cost_price") @db.Decimal(10, 2)
   /// 售价
   salePrice   Decimal      @default(0) @map("sale_price") @db.Decimal(10, 2)
+  /// 库存记录状态
   status      commonStatus @default(ACTIVE)
+  /// 创建时间
   createdAt   DateTime     @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
   // ===================== 关系 =====================
 
+  /// 所属门店
   store     Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  /// 对应商品SKU
   sku       ProductSku @relation(fields: [skuId], references: [id])
+  /// 所属商品分类
   categorys Category   @relation(fields: [categoryId], references: [id])
 
   @@unique([storeId, skuId])
@@ -536,10 +619,15 @@ model StoreInventory {
 
 // 库存模板表
 model StockModel {
+  /// 库存模板ID
   id        Int          @id @default(autoincrement()) @db.UnsignedInt
+  /// 库存模板名称
   name      String       @unique
+  /// 库存模板状态
   status    commonStatus @default(ACTIVE)
+  /// 创建时间
   createdAt DateTime     @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime     @updatedAt @map("updated_at")
 
   /// 库存模板与商品的关联（中间表）
@@ -552,10 +640,15 @@ model StockModel {
 
 /// 库存模板与商品的关联（中间表）
 model StockModelProduct {
+  /// 库存模板商品记录ID
   id           Int @id @default(autoincrement())
+  /// 库存模板ID
   stockModelId Int @db.UnsignedInt
+  /// 商品分类ID
   categoryId   Int @db.UnsignedInt
+  /// 商品ID
   productId    Int @db.UnsignedInt
+  /// 商品SKU ID
   skuId        Int @db.UnsignedInt
 
   /// 初始配置数量
@@ -563,8 +656,11 @@ model StockModelProduct {
 
   /// 关联
   stockModel StockModel @relation(fields: [stockModelId], references: [id], onDelete: Cascade)
+  /// 对应商品
   product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// 对应商品SKU
   skus       ProductSku @relation(fields: [skuId], references: [id], onDelete: Cascade)
+  /// 对应商品分类
   categorys  Category?  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([productId])
@@ -590,8 +686,11 @@ model RateRule {
 
 // 积分流水表
 model PointsFlow {
+  /// 积分流水ID
   id      Int            @id @default(autoincrement())
+  /// 用户ID
   userId  String         @map("user_id")
+  /// 所属用户
   user    User           @relation(fields: [userId], references: [id], onDelete: Restrict)
   // 积分类型：收入/支出
   type    PointsFlowType
@@ -602,6 +701,7 @@ model PointsFlow {
   // 变动后余额
   balance Int
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("create_at") @db.DateTime(3)
 
   // 索引：查用户流水必加
@@ -612,17 +712,27 @@ model PointsFlow {
 /// ========================= 订单相关 =========================
 /// 用户订单主表
 model Order {
+  /// 商品订单ID
   id            String  @id @default(cuid())
+  /// 商户订单号
   outTradeNo    String  @unique @map("out_trade_no")
+  /// 第三方支付交易号
   transactionId String? @map("transaction_id")
 
+  /// 订单状态
   status OrderStatus
+  /// 订单适用对象
   target Target      @default(TOC)
 
+  /// 用户微信OPENID
   openid    String
+  /// 用户ID
   userId    String  @map("user_id")
+  /// 用户昵称快照
   nickname  String
+  /// 用户手机号快照
   mobile    String
+  /// 用户头像快照
   avatarUrl String? @map("avatar_url")
 
   /// 订单总件数
@@ -636,22 +746,34 @@ model Order {
   /// 抵扣的积分
   usedScore     Int?    @map("used_score")
 
+  /// 支付方式
   paymentMethod PaymentMethod? @map("payment_method")
+  /// 支付流水号
   paymentNo     String?        @map("payment_no")
 
+  /// 订单备注
   remark String?
 
+  /// 创建时间
   createdAt    DateTime  @default(now()) @map("created_at")
+  /// 支付时间
   paidAt       DateTime? @map("paid_at")
+  /// 发货时间
   shippedAt    DateTime? @map("shipped_at")
+  /// 完成时间
   completedAt  DateTime? @map("completed_at")
+  /// 取消时间
   cancelledAt  DateTime? @map("cancelled_at")
+  /// 取消原因
   cancelReason String?   @map("cancel_reason")
+  /// 更新时间
   updatedAt    DateTime  @updatedAt @map("update_at")
 
   // 关联
   user     User           @relation(fields: [userId], references: [id])
+  /// 订单商品明细
   products OrderProduct[]
+  /// 订单收货地址
   address  OrderAddress?
 
   @@index([userId, status])
@@ -661,20 +783,32 @@ model Order {
 
 /// 订单商品表中间表
 model OrderProduct {
+  /// 订单商品记录ID
   id      String @id @default(cuid())
+  /// 商品订单ID
   orderId String @map("order_id")
 
+  /// 商品ID
   productId Int     @map("product_id")
+  /// 商品型号
   model     String?
+  /// 商品货号
   skuNo     String  @map("sku_no")
+  /// 商品名称快照
   name      String
+  /// 商品单价
   price     Decimal @db.Decimal(10, 2)
+  /// 购买数量
   quantity  Int
+  /// 商品图片快照
   image     String?
 
+  /// 商品SKU ID
   skuId   Int?    @map("sku_id")
+  /// SKU名称快照
   skuName String? @map("sku_name")
 
+  /// 所属商品订单
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_product")
@@ -682,18 +816,29 @@ model OrderProduct {
 
 /// 订单地址表
 model OrderAddress {
+  /// 订单地址记录ID
   id      String @id @default(cuid())
+  /// 商品订单ID
   orderId String @unique @map("order_id")
 
+  /// 收货人姓名
   name         String
+  /// 收货人手机号
   mobile       String
+  /// 省份
   province     String
+  /// 城市
   city         String
+  /// 区县
   county       String
+  /// 邮政编码
   postalCode   String? @map("postal_code")
+  /// 国家或地区编码
   nationalCode String? @map("national_code")
+  /// 详细地址
   detail       String
 
+  /// 所属商品订单
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_address")
@@ -701,15 +846,23 @@ model OrderAddress {
 
 // 会员订单表（用户购买VIP的订单记录）
 model VipOrder {
+  /// VIP订单ID
   id            Int     @id @default(autoincrement())
+  /// 商户订单号
   outTradeNo    String  @unique
+  /// 第三方支付交易号
   transactionId String?
 
+  /// 用户微信OPENID
   openid     String
+  /// 用户ID
   userId     String
+  /// 用户手机号快照
   userMobile String
+  /// VIP套餐ID
   vipProId   Int
 
+  /// 会员等级
   vipLevel     Int
   // 会员名称
   vipLevelText String         @db.VarChar(50)
@@ -723,6 +876,7 @@ model VipOrder {
   maxUsers     Int
   // 有效期天数
   term         String         @db.VarChar(10)
+  /// 订单备注
   remark       String?
   // 订单状态 PAID 等
   status       VipOrderStatus
@@ -735,6 +889,7 @@ model VipOrder {
 
   /// 关联
   vipPlan VipPlan @relation(fields: [vipProId], references: [id], onDelete: Cascade)
+  /// 下单用户
   user    User    @relation(fields: [userId], references: [id])
 
   @@index([userId]) // 用户ID索引
@@ -745,50 +900,64 @@ model VipOrder {
 
 /// 线下贴膜订单表
 model StoreServiceOrder {
-  id            String             @id @default(cuid())
+  /// 线下贴膜订单ID
+  id                 String             @id @default(cuid())
   /// 门店ID
-  storeId       String             @map("store_id")
+  storeId            String             @map("store_id")
   /// 用户ID
-  userId        String?            @map("user_id")
-  memberPhone   String?            @map("member_phone")
+  userId             String?            @map("user_id")
+  /// 会员手机号
+  memberPhone        String?            @map("member_phone")
   /// 微信OPENID
-  openid        String?
+  openid             String?
   /// 订单编号
-  outTradeNo    String             @unique @map("out_trade_no")
+  outTradeNo         String             @unique @map("out_trade_no")
   /// 商品ID
-  productId     Int                @map("product_id")
-  productName   String?            @map("product_name") @db.VarChar(255)
-  productCover  String?
+  productId          Int                @map("product_id")
+  /// 商品名称快照
+  productName        String?            @map("product_name") @db.VarChar(255)
+  /// 商品封面快照
+  productCover       String?
   /// SKUID
-  skuId         Int                @map("sku_id")
+  skuId              Int                @map("sku_id")
   /// 货号
-  skuNo         String             @map("sku_no")
+  skuNo              String             @map("sku_no")
   /// 原价
-  originalPrice Decimal            @map("original_price") @db.Decimal(10, 2)
+  originalPrice      Decimal            @map("original_price") @db.Decimal(10, 2)
   /// 实付金额
-  actualPayment Decimal            @map("actual_payment") @db.Decimal(10, 2)
+  actualPayment      Decimal            @map("actual_payment") @db.Decimal(10, 2)
   /// 支付方式
-  paymentMethod PaymentMethod      @default(wechat)
+  paymentMethod      PaymentMethod      @default(wechat)
   /// 状态（核心）
-  status        ServiceOrderStatus @default(PENDING)
+  status             ServiceOrderStatus @default(PENDING)
   /// 完成时间
-  completedAt   DateTime?          @map("completed_at")
+  completedAt        DateTime?          @map("completed_at")
   /// 取消时间
-  cancelledAt   DateTime?          @map("cancelled_at")
+  cancelledAt        DateTime?          @map("cancelled_at")
   /// 支付时间
-  paidAt        DateTime?          @map("paid_at")
+  paidAt             DateTime?          @map("paid_at")
   /// 备注
-  remark        String?            @default("线下贴膜")
-  createdAt     DateTime           @default(now()) @map("created_at")
+  remark             String?            @default("线下贴膜")
+  /// 免费贴膜权益来源
+  freeBenefitSource  FreeBenefitSource? @map("free_benefit_source")
+  /// 代理邀请领取记录ID
+  agentInviteClaimId String?            @map("agent_invite_claim_id")
+  /// 创建时间
+  createdAt          DateTime           @default(now()) @map("created_at")
 
-  user  User? @relation(fields: [userId], references: [id])
-  store Store @relation(fields: [storeId], references: [id])
+  /// 下单用户
+  user             User?             @relation(fields: [userId], references: [id])
+  /// 服务门店
+  store            Store             @relation(fields: [storeId], references: [id])
+  /// 使用的代理邀请权益记录
+  agentInviteClaim AgentInviteClaim? @relation(fields: [agentInviteClaimId], references: [id])
 
   @@index([storeId])
   @@index([userId])
   @@index([storeId, userId])
   @@index([outTradeNo])
   @@index([storeId, status, createdAt])
+  @@index([agentInviteClaimId])
   @@map("store_service_order")
 }
 
@@ -796,6 +965,7 @@ model StoreServiceOrder {
 
 /// 门店流水/业务记录
 model StoreTransaction {
+  /// 门店流水ID
   id             Int                  @id @default(autoincrement())
   /// 门店ID（平台消费可用 cmnyglwkl0001wkj0p7os6u8c = 平台虚拟门店）
   storeId        String               @map("store_id")
@@ -816,6 +986,7 @@ model StoreTransaction {
   /// 备注（如：平台商品消费）
   remark         String?
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("store_transaction")
@@ -823,6 +994,7 @@ model StoreTransaction {
 
 /// 结算表 
 model SettlementRecord {
+  /// 结算记录ID
   id        Int    @id @default(autoincrement())
   /// 门店ID（平台=cmnyglwkl0001wkj0p7os6u8c）
   storeId   String @map("store_id")
@@ -846,6 +1018,7 @@ model SettlementRecord {
   /// 结算时间
   settledAt       DateTime?        @map("settle_at")
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("create_at")
 
   @@map("settlement_record")
@@ -853,6 +1026,7 @@ model SettlementRecord {
 
 /// 佣金表
 model CommissionRecord {
+  /// 佣金记录ID
   id               Int              @id @default(autoincrement())
   /// 收佣人（上级）
   userId           String           @map("user_id")
@@ -873,6 +1047,7 @@ model CommissionRecord {
   /// 结算时间 
   settledAt        DateTime?        @map("settled_at")
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("commission_record")
@@ -880,6 +1055,7 @@ model CommissionRecord {
 
 /// 钱包
 model Wallet {
+  /// 钱包所属用户ID
   userId           String  @id @map("user_id")
   /// 总余额
   balance          Decimal @default(0) @db.Decimal(10, 2)
@@ -888,6 +1064,7 @@ model Wallet {
   /// 冻结金额
   frozenBalance    Decimal @default(0) @map("frozen_balance") @db.Decimal(10, 2)
 
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("wallet")
@@ -895,6 +1072,7 @@ model Wallet {
 
 /// 提现申请表
 model WalletWithdrawApply {
+  /// 提现申请ID
   id Int @id @default(autoincrement())
 
   /// 提现单号
@@ -915,6 +1093,7 @@ model WalletWithdrawApply {
   /// 收款账号 / openid / 支付宝账号等
   payeeAccount String? @map("payee_account")
 
+  /// 开户银行名称
   bankName String? @map("bank_name")
 
   /// 审核人ID，对应 Admin.id
@@ -935,6 +1114,7 @@ model WalletWithdrawApply {
   /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  /// 申请提现的用户
   user User @relation(fields: [userId], references: [id])
 
   @@index([userId])
@@ -945,6 +1125,7 @@ model WalletWithdrawApply {
 
 /// 资金流水(钱包)
 model WalletTransaction {
+  /// 钱包流水ID
   id           Int                   @id @default(autoincrement())
   /// 账户ID（用户 / 店长 / 平台）
   userId       String                @map("user_id")
@@ -961,6 +1142,7 @@ model WalletTransaction {
   /// 备注（如：订单佣金）
   remark       String?
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("create_at")
 
   @@map("wallet_transaction")
@@ -968,6 +1150,7 @@ model WalletTransaction {
 
 /// 佣金规则
 model CommissionRule {
+  /// 佣金规则ID
   id           Int     @id @default(autoincrement())
   /// 一级佣金比例
   level1Rate   Decimal @map("level1_rate") @db.Decimal(10, 2)
@@ -978,7 +1161,9 @@ model CommissionRule {
   /// 总比例
   totalRate    Decimal @map("total_rate") @db.Decimal(10, 2)
 
+  /// 创建时间
   createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("commission_rule")
@@ -987,19 +1172,33 @@ model CommissionRule {
 /// ========================= 会员相关 =========================
 // 会员套餐表
 model VipPlan {
+  /// VIP套餐ID
   id           Int          @id @default(autoincrement())
+  /// 会员等级
   level        Int
+  /// 会员等级名称
   levelText    String       @map("level_text")
+  /// 套餐价格
   price        Decimal      @db.Decimal(10, 2)
+  /// 会员折扣
   discount     Float
+  /// 套餐有效期
   term         String
+  /// 套餐权益说明
   rights       String
+  /// 套餐状态
   status       commonStatus
+  /// 创建时间
   createdAt    DateTime     @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt    DateTime     @updatedAt @map("updated_at")
+  /// 返现比例
   cashbackRate Float        @map("cashback_rate")
+  /// 最大可绑定用户数
   maxUsers     Int          @map("max_users")
+  /// 免费贴膜次数
   limit        Int
+  /// 使用该套餐创建的VIP订单
   vipOrder     VipOrder[]
 
   @@map("vip_plan")
@@ -1007,18 +1206,110 @@ model VipPlan {
 
 /// 申请表
 model JobApply {
+  /// 申请记录ID
   id         Int          @id @default(autoincrement())
+  /// 申请用户ID
   userId     String       @map("user_id")
+  /// 申请人姓名
   name       String
+  /// 申请人手机号
   mobile     String
+  /// 身份证正面图片
   icCardFont String       @map("ic_card_font")
+  /// 身份证反面图片
   icCardBack String       @map("ic_card_back")
+  /// 业务或申请说明
   business   String?
+  /// 申请类型
   type       ApplyType
+  /// 审核状态
   status     ReviewStatus
+  /// 创建时间
   createdAt  DateTime     @default(now()) @map("created_at")
+  /// 更新时间
   updatedAt  DateTime     @updatedAt
 
   @@index([userId, type])
   @@map("job_apply")
+}
+
+/// ========================= 代理相关 =========================
+
+/// 代理资格表
+model AgentProfile {
+  /// 代理资格记录ID
+  id        String      @id @default(cuid())
+  /// 代理用户ID，同一用户只能拥有一个代理身份
+  userId    String      @unique @map("user_id")
+  /// 代理邀请码，停用后恢复时继续使用原邀请码
+  agentCode String      @unique @map("agent_code") @db.VarChar(16)
+  /// 代理邀请码二维码图片链接
+  agentCodeUrl String?  @map("agent_code_url") @db.VarChar(500)
+  /// 代理账号状态
+  status    AgentStatus @default(ACTIVE)
+
+  /// 开通代理资格的管理员ID
+  openedBy Int?     @map("opened_by")
+  /// 代理资格开通时间
+  openedAt DateTime @default(now()) @map("opened_at")
+
+  /// 停用代理资格的管理员ID
+  disabledBy     Int?      @map("disabled_by")
+  /// 代理资格停用时间
+  disabledAt     DateTime? @map("disabled_at")
+  /// 代理资格停用原因
+  disabledReason String?   @map("disabled_reason") @db.VarChar(200)
+
+  /// 后台备注
+  remark    String?  @db.VarChar(200)
+  /// 创建时间
+  createdAt DateTime @default(now()) @map("created_at")
+  /// 更新时间
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// 代理对应的用户
+  user   User               @relation(fields: [userId], references: [id])
+  /// 该代理产生的邀请领取记录
+  claims AgentInviteClaim[]
+
+  @@index([status, createdAt])
+  @@map("agent_profile")
+}
+
+/// 邀请领取及代理权益表
+model AgentInviteClaim {
+  /// 邀请领取记录ID
+  id            String  @id @default(cuid())
+  /// 邀请人的代理资格记录ID
+  agentId       String  @map("agent_id")
+  /// 被邀请用户ID，每个用户全平台最多领取一次
+  inviteeUserId String  @unique @map("invitee_user_id")
+  /// 邀请链路追踪ID
+  traceId       String? @map("trace_id") @db.VarChar(64)
+
+  /// 权益领取时间
+  claimedAt     DateTime                 @default(now()) @map("claimed_at")
+  /// 权益到期时间
+  expiresAt     DateTime                 @map("expires_at")
+  /// 代理邀请赠送权益状态
+  benefitStatus AgentInviteBenefitStatus @default(AVAILABLE) @map("benefit_status")
+
+  /// 最近一次核销时间
+  usedAt    DateTime? @map("used_at")
+  /// 创建时间
+  createdAt DateTime  @default(now()) @map("created_at")
+  /// 更新时间
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  /// 发起邀请的代理
+  agent         AgentProfile        @relation(fields: [agentId], references: [id])
+  /// 领取权益的用户
+  invitee       User                @relation("AgentInvitee", fields: [inviteeUserId], references: [id])
+  /// 使用过该权益的线下贴膜订单
+  serviceOrders StoreServiceOrder[]
+
+  @@index([agentId, claimedAt])
+  @@index([inviteeUserId, benefitStatus, expiresAt])
+  @@index([traceId])
+  @@map("agent_invite_claim")
 }
