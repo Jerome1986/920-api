@@ -6,7 +6,6 @@ export class CreateWalletWithdrawApplyDto {
   userId: string
 
   @IsNumber()
-  @Min(100, { message: '提现金额必须大于等于100' })
   amount: number
 
   @IsString()
