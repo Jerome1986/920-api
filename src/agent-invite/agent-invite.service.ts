@@ -3,14 +3,16 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common'
 import { AgentInviteBenefitStatus, AgentStatus, Prisma } from '@prisma/client'
 import { PrismaService } from 'src/prisma/prisma.service'
 import { AgentInviteRepository } from './agent-invite.repository'
 import { ClaimAgentInviteDto } from './dto/claim-agent-invite.dto'
+import { QueryAgentInviteRecordsDto } from './dto/query-agent-invite-records.dto'
 
 const AGENT_INVITE_REWARD_COUNT = 1
-const AGENT_INVITE_VALIDITY_DAYS = 30
+const AGENT_INVITE_VALIDITY_DAYS = 60
 
 export enum AgentInviteClaimStatus {
   // 当前用户尚未领取，可以立即领取权益
@@ -36,7 +38,7 @@ export class AgentInviteService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly agentInviteRepo: AgentInviteRepository,
-  ) {}
+  ) { }
 
   // 查询当前用户的代理邀请赠送权益，本函数只读取和计算状态，不修改数据库
   async findMyBenefit(userId: string) {
@@ -157,11 +159,11 @@ export class AgentInviteService {
       validityDays: AGENT_INVITE_VALIDITY_DAYS,
       claim: claim
         ? {
-            claimId: claim.id,
-            claimedAt: claim.claimedAt,
-            expiresAt: claim.expiresAt,
-            benefitStatus: this.resolveBenefitStatus(claim.benefitStatus, claim.expiresAt),
-          }
+          claimId: claim.id,
+          claimedAt: claim.claimedAt,
+          expiresAt: claim.expiresAt,
+          benefitStatus: this.resolveBenefitStatus(claim.benefitStatus, claim.expiresAt),
+        }
         : null,
     }
   }
@@ -194,5 +196,64 @@ export class AgentInviteService {
       return AgentInviteBenefitStatus.EXPIRED
     }
     return status
+  }
+
+  // 根据用户手机号查询是否是某个代理的邀请
+  async checkInviteByPhone(agentId: string, mobile: string) {
+    const res = await this.agentInviteRepo.checkInviteByPhone(agentId, mobile)
+    console.log('邀请返回', res)
+    return { isInvite: res ? true : false }
+  }
+
+  // 根据代理agentId 查询邀请权益列表
+  async findRecords(query: QueryAgentInviteRecordsDto) {
+    const agent = await this.agentInviteRepo.findAgentByUserId(query.userId)
+    if (!agent || agent.status !== AgentStatus.ACTIVE) {
+      throw new ForbiddenException('暂无代理邀请记录查看权限')
+    }
+
+    const pageNum = query.pageNum ?? 1
+    const pageSize = query.pageSize ?? 10
+    const now = new Date()
+    const [summary, [records, total], mobileMatched] = await Promise.all([
+      this.agentInviteRepo.countRecordsByStatus(agent.id, now),
+      this.agentInviteRepo.findRecords(
+        agent.id,
+        query.mobile,
+        query.benefitStatus,
+        pageNum,
+        pageSize,
+        now,
+      ),
+      query.mobile
+        ? this.agentInviteRepo.hasRecordByMobile(agent.id, query.mobile)
+        : Promise.resolve(null),
+    ])
+
+    return {
+      agentCode: agent.agentCode,
+      summary: {
+        totalInvited:
+          summary.availableCount + summary.usedCount + summary.expiredCount,
+        ...summary,
+      },
+      list: records.map(record => ({
+        claimId: record.id,
+        mobile: this.maskMobile(record.invitee.mobile),
+        claimedAt: record.claimedAt,
+        expiresAt: record.expiresAt,
+        benefitStatus: this.resolveBenefitStatus(record.benefitStatus, record.expiresAt),
+        usedAt: record.usedAt,
+      })),
+      total,
+      pageNum,
+      pageSize,
+      hasMore: pageNum * pageSize < total,
+      mobileMatched,
+    }
+  }
+
+  private maskMobile(mobile: string) {
+    return `${mobile.slice(0, 3)}****${mobile.slice(-4)}`
   }
 }

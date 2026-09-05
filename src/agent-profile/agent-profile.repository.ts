@@ -22,6 +22,20 @@ export class AgentProfileRepository {
     })
   }
 
+  // 前端查询当前用户是否为代理人
+  findMyAgentProfile(userId: string) {
+    return this.prisma.agentProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        agentCode: true,
+        agentCodeUrl: true,
+        status: true,
+        openedAt: true,
+      },
+    })
+  }
+
   // 根据用户 ID 查询代理资格，用于防止重复开通
   findByUserId(userId: string) {
     return this.prisma.agentProfile.findUnique({ where: { userId } })

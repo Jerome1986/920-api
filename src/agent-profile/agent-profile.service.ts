@@ -15,16 +15,16 @@ const AGENT_CODE_STORAGE_ENDPOINT = 'objectstorageapi.gzg.sealos.run'
 @Injectable()
 export class AgentProfileService {
   constructor(
-    private agentProfileRepo:AgentProfileRepository,
-    private userRepo:UserRepository
-  ) {}
+    private agentProfileRepo: AgentProfileRepository,
+    private userRepo: UserRepository
+  ) { }
 
   // 设定某个用户为代理人
- async setAgent(createAgentProfileDto: CreateAgentProfileDto) {
+  async setAgent(createAgentProfileDto: CreateAgentProfileDto) {
     // 1.查询用户是否为注册用户
     const userId = createAgentProfileDto.userId
     const user = await this.userRepo.findOne(userId)
-    if(!user) {
+    if (!user) {
       throw new BadRequestException('当前用户未注册')
     }
 
@@ -53,6 +53,17 @@ export class AgentProfileService {
       // 数据库写入失败时删除已生成的孤立图片
       await this.deleteAgentCodeImage(agentCode)
       throw error
+    }
+  }
+
+  // 前端查询当前用户是否为代理人
+  async findMyAgentProfile(userId: string) {
+    const profile = await this.agentProfileRepo.findMyAgentProfile(userId)
+
+    return {
+      isAgent: Boolean(profile),
+      canInvite: profile?.status === AgentStatus.ACTIVE,
+      profile,
     }
   }
 

@@ -6,7 +6,7 @@ import { UpdateAgentStatusDto } from './dto/update-agent-status.dto';
 
 @Controller('agent-profile')
 export class AgentProfileController {
-  constructor(private readonly agentProfileService: AgentProfileService) {}
+  constructor(private readonly agentProfileService: AgentProfileService) { }
 
   // 设定某个用户为代理人
   @Post('setAgent')
@@ -20,6 +20,12 @@ export class AgentProfileController {
   findAll(@Query() queryAgentProfileDto: QueryAgentProfileDto) {
     // 将已通过 ValidationPipe 校验的查询参数交给业务层处理
     return this.agentProfileService.findAll(queryAgentProfileDto)
+  }
+
+  // 前端查询当前用户是否为代理人
+  @Get('me/:userId')
+  findMyAgentProfile(@Param('userId') userId: string) {
+    return this.agentProfileService.findMyAgentProfile(userId)
   }
 
   // 后台启用或停用代理资格
