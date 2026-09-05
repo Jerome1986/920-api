@@ -6,6 +6,7 @@ import { QueryMyAgentInviteBenefitDto } from './dto/query-my-agent-invite-benefi
 import { QueryAgentInvitePhoneDto } from './dto/query-agent-invite-phone.dto'
 import { QueryAgentInviteRecordsDto } from './dto/query-agent-invite-records.dto'
 import { AgentInviteRecordsExceptionFilter } from './filters/agent-invite-records-exception.filter'
+import { QueryAdminAgentInviteRecordsDto } from './dto/query-admin-agent-invite-records.dto'
 
 @Controller('agent-invites')
 export class AgentInviteController {
@@ -39,6 +40,13 @@ export class AgentInviteController {
   @UseFilters(AgentInviteRecordsExceptionFilter)
   findRecords(@Query() query: QueryAgentInviteRecordsDto) {
     return this.agentInviteService.findRecords(query)
+  }
+
+  // 后台按目标代理用户 ID 查询邀请记录，允许查看已停用代理的历史数据
+  @Get('admin/records')
+  @UseFilters(AgentInviteRecordsExceptionFilter)
+  findAdminRecords(@Query() query: QueryAdminAgentInviteRecordsDto) {
+    return this.agentInviteService.findAdminRecords(query)
   }
 
   // 当前用户确认领取代理邀请赠送的免费贴膜权益

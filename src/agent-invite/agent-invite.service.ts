@@ -10,6 +10,7 @@ import { PrismaService } from 'src/prisma/prisma.service'
 import { AgentInviteRepository } from './agent-invite.repository'
 import { ClaimAgentInviteDto } from './dto/claim-agent-invite.dto'
 import { QueryAgentInviteRecordsDto } from './dto/query-agent-invite-records.dto'
+import { QueryAdminAgentInviteRecordsDto } from './dto/query-admin-agent-invite-records.dto'
 
 const AGENT_INVITE_REWARD_COUNT = 1
 const AGENT_INVITE_VALIDITY_DAYS = 60
@@ -212,6 +213,22 @@ export class AgentInviteService {
       throw new ForbiddenException('暂无代理邀请记录查看权限')
     }
 
+    return this.buildRecordsResult(agent, query)
+  }
+
+  // 后台查询目标代理的邀请记录，保留已停用代理的历史数据查看能力
+  async findAdminRecords(query: QueryAdminAgentInviteRecordsDto) {
+    const agent = await this.agentInviteRepo.findAgentByUserId(query.userId)
+    if (!agent) throw new NotFoundException('代理不存在')
+
+    return this.buildRecordsResult(agent, query)
+  }
+
+  // 小程序和后台共用统计、筛选、分页及返回组装逻辑
+  private async buildRecordsResult(
+    agent: { id: string; agentCode: string },
+    query: QueryAgentInviteRecordsDto | QueryAdminAgentInviteRecordsDto,
+  ) {
     const pageNum = query.pageNum ?? 1
     const pageSize = query.pageSize ?? 10
     const now = new Date()

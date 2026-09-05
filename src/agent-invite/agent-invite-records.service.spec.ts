@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { AgentInviteBenefitStatus, AgentStatus } from '@prisma/client'
 import { AgentInviteService } from './agent-invite.service'
 
@@ -101,5 +101,32 @@ describe('AgentInviteService.findRecords', () => {
     expect(result.mobileMatched).toBeNull()
     expect(repository.hasRecordByMobile).not.toHaveBeenCalled()
     expect(result).toMatchObject({ total: 0, pageNum: 1, pageSize: 10, hasMore: false })
+  })
+
+  it('后台允许查询已停用代理的历史邀请记录', async () => {
+    repository.findAgentByUserId.mockResolvedValue({
+      id: 'agent-1',
+      agentCode: 'A001',
+      status: AgentStatus.DISABLED,
+    })
+    repository.countRecordsByStatus.mockResolvedValue({
+      availableCount: 0,
+      usedCount: 1,
+      expiredCount: 0,
+    })
+    repository.findRecords.mockResolvedValue([[], 1])
+
+    const result = await service.findAdminRecords({ userId: 'user-1' })
+
+    expect(result.agentCode).toBe('A001')
+    expect(result.summary.totalInvited).toBe(1)
+  })
+
+  it('后台查询不存在的代理时返回404异常', async () => {
+    repository.findAgentByUserId.mockResolvedValue(null)
+
+    await expect(service.findAdminRecords({ userId: 'user-1' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
   })
 })
